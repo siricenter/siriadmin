@@ -1,0 +1,29 @@
+{{extend 'layout.html'}}
+<h1>This view displays the time clock entries</h1>
+{{=A('Back to Dash', _href=URL('timeclock', 'employeedash'))}}
+{{=grid}}
+<form>
+	<!--//TODO: move style to css-->
+	<input type="button" value="Calculate Hours" onclick="ajax('calcDisplayedHours', ,'hours-total')" style="float:right; margin-right:10px;">
+</form>
+<div id="hours-total" style="float:right; margin-right:10px; font-weight:bold"></div>
+<script>
+	function calcPeriodHours(){
+		var dates = parseSearchValue(getSearchValue());
+		var totalHours = 0
+
+	  	document.getElementById("hours-total").innerHTML=dates[0] + " - " + dates[1] + " hours: " + totalHours;
+	}
+
+	function getSearchValue(){
+		var searchValue = document.getElementById("w2p_keywords").value;
+		return searchValue;
+	}
+
+	function parseSearchValue(searchValue){
+		var dates = searchValue.match(/(?!")[\d]*?-[\d]*?-[\d]*?(?=")/g);
+		return dates;
+	}
+</script>
+
+{{=response.toolbar()}}

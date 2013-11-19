@@ -1,0 +1,68 @@
+{{extend 'layout.html'}}
+{{=adminMenu}}
+<br>
+<!--users-->
+<table>
+	<thead>
+		<tr>
+            <th>ID</th>
+            <th>First Name</th>
+            <th>Last Name</th>
+            <th>Email</th>
+            <th>Groups</th>
+            <th>Active?</th>
+            <th>Edit</th>
+        </tr>
+    </thead>
+    <tbody>
+		{{for user in users:}}
+    	<tr>
+            <td>{{=user.id}}</td>
+            <td>{{=user.first_name}}</td>
+            <td>{{=user.last_name}}</td>
+            <td>{{=user.email}}</td>
+            <td>{{='groups'}}</td>
+            <td>{{='is_active'}}</td>
+            <td>{{=A('edit', _href=URL('default', 'edituser', args=user.id))}}</td>
+        </tr>
+		{{pass}}
+    </tbody>
+</table>
+{{=A('Manage Users', _href=URL('default', 'manageusers'))}}
+<br><hr><br>
+{{=groups}}
+{{=A('Manage Groups', _href=URL('default', 'managegroups'))}}
+<br><hr><br>
+<!--projects-->
+<table>
+	<thead>
+		<tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Description</th>
+            <th>Coordinator</th>
+            <th>Contact</th>
+            <th>Reviewed?</th>
+            <th>Contracted?</th>
+            <th>Active?</th>
+        </tr>
+    </thead>
+    <tbody>
+		{{for project in projects:}}
+    	<tr>
+            <td>{{=A(project.id, _href=URL('default', 'editproject', args=project.id))}}</td>
+            <td>{{=project.name}}</td>
+            <td>{{=project.description}}</td>
+            <td>{{=project.coordinator}}</td>
+            <td>{{=project.contact_name}}</td>
+            <td>{{=project.reviewed}}</td>
+            <td>{{=project.contracted}}</td>
+            <td>{{=project.is_active}}</td>
+        </tr>
+		{{pass}}
+    </tbody>
+</table>
+{{=A('Manage Projects', _href=URL('default', 'manageprojects'))}}
+<br><hr><br>
+
+{{=response.toolbar()}}

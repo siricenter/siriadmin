@@ -1,0 +1,31 @@
+{{extend 'layout.html'}}
+<h1>User Admin</h1>
+{{=adminUsersMenu}}
+<table>
+	<thead>
+		<tr>
+            <th>ID</th>
+            <th>First Name</th>
+            <th>Last Name</th>
+            <th>Email</th>
+            <th>Groups</th>
+            <th>Active?</th>
+            <th>Edit</th>
+        </tr>
+    </thead>
+    <tbody>
+		{{for user in users:}}
+    	<tr>
+            <td>{{=user.id}}</td>
+            <td>{{=user.first_name}}</td>
+            <td>{{=user.last_name}}</td>
+            <td>{{=user.email}}</td>
+            <td>{{='groups'}}</td>
+            <td>{{='active'}}</td>
+            <td>{{=A('edit', _href=URL('default', 'edituser', args=user.id))}}</td>
+        </tr>
+		{{pass}}
+    </tbody>
+</table>
+<br><hr><br>
+{{=form}}

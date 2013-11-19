@@ -1,0 +1,37 @@
+{{extend 'layout.html'}}
+<div id="timeclock-form" style="float:left; width:40%">
+	<h1>Add Time</h1>
+	{{=form}}
+</div>
+<div id="timeclock-entries" style="float:left; width:60%">
+	<h1>Entries</h1>
+	<table>
+		<thead>
+			<tr class="table-header">
+				<td>Date</td>
+				<td>Time In</td>
+				<td>Time Out</td>
+				<td>Description</td>
+				<td>Hours</td>
+			</tr>
+		</thead>
+		<tbody>
+			{{for i in xrange(14):}}
+			<tr>
+				<td>{{=clockEntries[len(clockEntries)-i-1].work_date}}</td>
+				<td>{{=clockEntries[len(clockEntries)-i-1].time_in}}</td>
+				<td>{{=clockEntries[len(clockEntries)-i-1].time_out}}</td>
+				<td>{{=clockEntries[len(clockEntries)-i-1].description}}</td>
+				<td>{{=clockEntries[len(clockEntries)-i-1].hours}}</td>
+			</tr>
+			{{totalHours += clockEntries[i].hours}}
+			{{pass}}
+		</tbody>
+		<tfoot>
+			<tr>
+				<td></td><td></td><td></td><td class="table-total" style="text-align:right">{{=B('Total Hours')}}:</td><td>{{=B(totalHours)}}</td>
+			</tr>
+		</tfoot>
+	</table>
+	{{=A('See All', _href=URL('timeclock', 'displaytime'))}}
+</div>

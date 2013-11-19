@@ -1,0 +1,10 @@
+{{extend 'layout.html'}}
+<h1>This is the default/gdatatest.html template</h1>
+<p>The document exists: {{=docExists}}</p>
+<table>
+{{for doc in docsFeed.entry:}}
+<tr>
+	<td>{{=doc.title.text}}</td>
+</tr>
+{{pass}}
+</table>

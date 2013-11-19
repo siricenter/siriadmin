@@ -1,0 +1,5 @@
+{{extend 'layout.html'}}
+<h1>Please edit the project</h1>
+{{=A('Admin Home', _href=URL('default', 'clockadmin'))}}
+{{=A('Admin Home' _href=URL(clockadmin))}}
+{{=form}}

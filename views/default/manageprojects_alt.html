@@ -1,0 +1,78 @@
+{{extend 'layout.html'}}
+<h1>Project Admin</h1>
+{{=adminMenu}}
+<br>
+<table>
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Coordinator</th>
+            <th>Organization</th>
+            <th>Contact Name</th>
+            <th>Reviewed?</th>
+            <th>Active?</th>
+        </tr>
+    </thead>
+    <tbody>
+        {{for project in projects:}}
+            {{if project.reviewed == False:}}
+                <tr>
+                    <td>{{=A(project.id, _href=URL('default', 'editproject', args=project.id))}}</td>
+                    <td>{{=project.name}}</td>
+                    <td>{{=project.coordinator}}</td>
+                    <td>{{=project.contact_org}}</td>
+                    <td>{{=project.contact_name}}</td>
+                    <td>{{=project.reviewed}}</td>
+                    <td>{{=project.is_active}}</td>
+                </tr>
+            {{pass}}
+        {{pass}}
+    </tbody>
+</table>
+<br>
+<p>type: type({{=project.description}})</p>
+<table>
+	<thead>
+		<tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Description</th>
+            <th>Coordinator</th>
+            <th>Organization</th>
+            <th>Contact Name</th>
+            <th>Contact Phone</th>
+            <th>Contact Email</th>
+            <th>Contact Location</th>
+            <th># of Students</th>
+            <th>Reviewed?</th>
+            <th>Contracted?</th>
+            <th>Active?</th>
+            <th>Edit</th>
+        </tr>
+    </thead>
+    <tbody>
+		{{for project in projects:}}
+    	<tr>
+            <td>{{=A(project.id, _href=URL('default', 'editproject', args=project.id))}}</td>
+            <td>{{=project.name}}</td>
+            <td>
+                {{=project.description}}
+            </td>
+            <td>{{=project.coordinator}}</td>
+            <td>{{=project.contact_org}}</td>
+            <td>{{=project.contact_name}}</td>
+            <td>{{=project.contact_phone}}</td>
+            <td>{{=project.contact_email}}</td>
+            <td>{{=project.contact_loc}}</td>
+            <td>{{=project.num_students}}</td>
+            <td>{{=project.reviewed}}</td>
+            <td>{{=project.contracted}}</td>
+            <td>{{=project.is_active}}</td>
+        </tr>
+		{{pass}}
+    </tbody>
+</table>
+<br><hr><br>
+{{=form}}
+{{=response.toolbar()}}

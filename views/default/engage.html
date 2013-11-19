@@ -1,0 +1,20 @@
+{{extend 'layout.html'}}
+<div class='engage-section'>
+	<h1>Partner or Collaborate</h1>
+	<p>a leading paragraph summarizing what it means for businesses or organizations to partner with SIRI</p>
+	{{=A('Learn More...', _href=URL('default', 'engagepartner'))}}<br>
+</div>
+
+<div class='engage-section'>
+	<h1>Find Student Work or Internships</h1>
+	<p>a leading paragraph summarizing how students can get involved with SIRI</p>
+	{{=A('Learn More...', _href=URL('default', 'engagestudent'))}}
+</div>
+
+<div class='engage-section'>
+	<h1>Start a University Project or Mentor Studentss</h1>
+	<p>a leading paragraph summarizing what it means for faculty or mentors to partner with SIRI</p>
+	{{=A('Learn More...', _href=URL('default', 'engagementor'))}}
+</div>
+
+{{=response.toolbar()}}

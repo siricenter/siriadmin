@@ -1,0 +1,539 @@
+(dp1
+S'output'
+p2
+S'<type \'exceptions.SyntaxError\'> invalid table/column name "desc" is a "ALL" reserved SQL/NOSQL keyword'
+p3
+sS'layer'
+p4
+S'/home/SIRI/web2py/applications/siri_admin/models/db.py'
+p5
+sS'code'
+p6
+S"# -*- coding: utf-8 -*-\n\n#########################################################################\n## This scaffolding model makes your app work on Google App Engine too\n## File is released under public domain and you can use without limitations\n#########################################################################\n\n## if SSL/HTTPS is properly configured and you want all HTTP requests to\n## be redirected to HTTPS, uncomment the line below:\n# request.requires_https()\n\nif not request.env.web2py_runtime_gae:\n    ## if NOT running on Google App Engine use SQLite or other DB\n    db = DAL('sqlite://storage.sqlite',pool_size=1,check_reserved=['all'])\nelse:\n    ## connect to Google BigTable (optional 'google:datastore://namespace')\n    db = DAL('google:datastore')\n    ## store sessions and tickets there\n    session.connect(request, response, db=db)\n    ## or store session in Memcache, Redis, etc.\n    ## from gluon.contrib.memdb import MEMDB\n    ## from google.appengine.api.memcache import Client\n    ## session.connect(request, response, db = MEMDB(Client()))\n\n## by default give a view/generic.extension to all actions from localhost\n## none otherwise. a pattern can be 'controller/function.extension'\nresponse.generic_patterns = ['*'] if request.is_local else []\n## (optional) optimize handling of static files\n# response.optimize_css = 'concat,minify,inline'\n# response.optimize_js = 'concat,minify,inline'\n\n#########################################################################\n## Here is sample code if you need for\n## - email capabilities\n## - authentication (registration, login, logout, ... )\n## - authorization (role based authorization)\n## - services (xml, csv, json, xmlrpc, jsonrpc, amf, rss)\n## - old style crud actions\n## (more options discussed in gluon/tools.py)\n#########################################################################\n\nimport gdata\nimport gspread\nfrom datetime import datetime, date, time\nfrom gluon.tools import Auth, Crud, Service, PluginManager, prettydate\nauth = Auth(db)\ncrud, service, plugins = Crud(db), Service(), PluginManager()\n\n## create all tables needed by auth if not custom tables\nauth.define_tables(username=False, signature=False)\n\n## configure email\nmail = auth.settings.mailer\nmail.settings.server = 'logging' or 'smtp.gmail.com:587'\nmail.settings.sender = 'evancaldwell@yahoo.com'\nmail.settings.login = 'dawg3tt:mol090901!'\n\n## configure auth policy\nauth.settings.registration_requires_verification = False\nauth.settings.registration_requires_approval = False\nauth.settings.reset_password_requires_verification = True\n\n## if you need to use OpenID, Facebook, MySpace, Twitter, Linkedin, etc.\n## register with janrain.com, write your domain:api_key in private/janrain.key\nfrom gluon.contrib.login_methods.rpx_account import use_janrain\nuse_janrain(auth, filename='private/janrain.key')\n\n#########################################################################\n## Define your tables below (or better in another model file) for example\n##\n## >>> db.define_table('mytable',Field('myfield','string'))\n##\n## Fields can be 'string','text','password','integer','double','boolean'\n##       'date','time','datetime','blob','upload', 'reference TABLENAME'\n## There is an implicit 'id integer autoincrement' field\n## Consult manual for more options, validators, etc.\n##\n## More API examples for controllers:\n##\n## >>> db.mytable.insert(myfield='value')\n## >>> rows=db(db.mytable.myfield=='value').select(db.mytable.ALL)\n## >>> for row in rows: print row.id, row.myfield\n#########################################################################\n\n# db questions: should the students all be in one complex table or should they be in separate tables?\n\ndb.define_table('timeclock',\n    Field('project','string', required=True),\n    Field('work_date','date', required=True),\n    Field('time_in','time', required=True),\n    Field('time_out','time', required=True),\n    Field('description', 'text', required=True),\n    Field('hours','double'),\n    Field('usr_id','reference auth_user')\n)\ndb.timeclock.project.requires = IS_IN_DB(db,'siri_projects.project_name')\ndb.timeclock.work_date.requires = IS_NOT_EMPTY()\ndb.timeclock.time_in.requires = IS_NOT_EMPTY()\ndb.timeclock.time_out.requires = IS_NOT_EMPTY()\ndb.timeclock.description.requires = IS_NOT_EMPTY()\ndb.timeclock.hours.readable = False\ndb.timeclock.usr_id.writable = db.timeclock.usr_id.readable = False\nif auth.is_logged_in():\n    db.timeclock.usr_id.default=auth.user.id\n    \ndb.define_table('siri_projects',\n    Field('name', 'string'),\n    Field('desc', 'text'),\n    Field('coordinator', 'string'),\n    Field('contact_org', 'string'),\n    Field('contact_name', 'string', required=True),\n    Field('contact_phone', 'string'),\n    Field('contact_email', 'string', required=True),\n    Field('contact_loc', 'string'),\n    Field('num_students', 'integer'),\n    Field('reviewed', 'boolean'),\n    Field('contracted', 'boolean'),\n    Field('active', 'boolean')\n)\ndb.siri_projects.reviewed.default=False\n\ndb.define_table('siri_mentors',\n    Field('usr_id','reference auth_user'),\n    Field('project', 'string'),\n    Field('name', 'string'),\n    Field('phone', 'string'),\n    Field('email', 'string'),\n    Field('organization', 'string'),\n    Field('org_title', 'string'),\n    Field('type', 'string')\n)\ndb.siri_mentors.project.requires = IS_IN_DB(db,'siri_projects.project_name')\ndb.siri_mentors.type.requires = IS_IN_SET(['Full Mentor', 'Student Contact', 'Coordinator','Proect Mentor'])\ndb.siri_mentors.usr_id.writable = db.siri_mentors.usr_id.readable = False\nif auth.is_logged_in():\n    db.siri_mentors.usr_id.default=auth.user.id\n\ndb.define_table('siri_students',\n    Field('usr_id','reference auth_user'),\n)\ndb.siri_students.usr_id.writable = db.siri_students.usr_id.readable = False\nif auth.is_logged_in():\n    db.siri_students.usr_id.default=auth.user.id\n\ndb.define_table('fs_volunteers',\n    Field('usr_id','reference auth_user'),\n    Field('opp_location','string',required=True),\n    Field('internship','boolean'),\n    Field('confirmed','boolean'),\n    Field('paid','boolean'),\n    Field('airfare_purchased','boolean'),\n    Field('housing_conf','boolean'),\n    Field('training_hotel','boolean'),\n    Field('training_hotel_resrv','boolean'),\n    Field('training_start','date'),\n    Field('training_end','date'),\n    Field('depart_date','date'),\n    Field('return_date','date'),\n    Field('work_start','date'),\n    Field('work_end','date'),\n    Field('birthday','date'),\n    Field('emergency_name','string'),\n    Field('emergency_phone','string'),\n    Field('archive','boolean')\n)\ndb.fs_volunteers.opp_location.requires = IS_IN_SET(['Madrid', 'Dominican Republic', 'Montreal'])\n\ndb.define_table('fs_prospects',\n    Field('usr_id','reference auth_user'),\n    Field('candidate','boolean'),\n    Field('interested_location','string'),\n    Field('interested_dates','string'),\n    Field('speak_language','string'),\n    Field('language_level','integer'),\n    Field('referred_by','string'),  #**** how do I make it an option list\n    Field('resume','upload')\n)\ndb.fs_prospects.interested_location.requires = IS_IN_SET(['Madrid', 'Dominican Republic', 'Montreal','New Hampshire'])\ndb.fs_prospects.speak_language.requires = IS_IN_SET(['Spanish', 'French', 'Other'])\ndb.fs_prospects.language_level.requires = IS_IN_SET(['1 - Beginner', '2 - I know a few phrases', '3 - I can get by on my own', '4 - I am conversational', '5 - Native/Fluent'])\ndb.fs_prospects.referred_by.requires = IS_IN_SET(['International Studies Instructor', 'Language Instructor', 'University Email', 'Know someone who went to a meeting', 'Know someone who participated', 'Found the website'])\n\n## after defining tables, uncomment below to enable auditing\nauth.enable_record_versioning(db)\n"
+p7
+sS'snapshot'
+p8
+(dp9
+S'exception'
+p10
+(dp11
+S'__getslice__'
+p12
+S"<method-wrapper '__getslice__' of exceptions.SyntaxError object>"
+p13
+sS'text'
+p14
+S'None'
+p15
+sS'__str__'
+p16
+S"<method-wrapper '__str__' of exceptions.SyntaxError object>"
+p17
+sS'__reduce__'
+p18
+S'<built-in method __reduce__ of exceptions.SyntaxError object>'
+p19
+sS'__dict__'
+p20
+S'{}'
+p21
+sS'__sizeof__'
+p22
+S'<built-in method __sizeof__ of exceptions.SyntaxError object>'
+p23
+sS'__init__'
+p24
+S"<method-wrapper '__init__' of exceptions.SyntaxError object>"
+p25
+sS'__setattr__'
+p26
+S"<method-wrapper '__setattr__' of exceptions.SyntaxError object>"
+p27
+sS'__reduce_ex__'
+p28
+S'<built-in method __reduce_ex__ of exceptions.SyntaxError object>'
+p29
+sS'__new__'
+p30
+S'<built-in method __new__ of type object>'
+p31
+sS'__format__'
+p32
+S'<built-in method __format__ of exceptions.SyntaxError object>'
+p33
+sS'__class__'
+p34
+S"<type 'exceptions.SyntaxError'>"
+p35
+sS'filename'
+p36
+S'None'
+p37
+sS'lineno'
+p38
+S'None'
+p39
+sS'msg'
+p40
+S'\'invalid table/column name "desc" is a "ALL" reserved SQL/NOSQL keyword\''
+p41
+sS'__doc__'
+p42
+S"'Invalid syntax.'"
+p43
+sS'__getitem__'
+p44
+S"<method-wrapper '__getitem__' of exceptions.SyntaxError object>"
+p45
+sS'__setstate__'
+p46
+S'<built-in method __setstate__ of exceptions.SyntaxError object>'
+p47
+sS'__getattribute__'
+p48
+S"<method-wrapper '__getattribute__' of exceptions.SyntaxError object>"
+p49
+sS'print_file_and_line'
+p50
+S'None'
+p51
+sS'args'
+p52
+S'(\'invalid table/column name "desc" is a "ALL" reserved SQL/NOSQL keyword\',)'
+p53
+sS'__subclasshook__'
+p54
+S'<built-in method __subclasshook__ of type object>'
+p55
+sS'offset'
+p56
+S'None'
+p57
+sS'__unicode__'
+p58
+S'<built-in method __unicode__ of exceptions.SyntaxError object>'
+p59
+sS'__delattr__'
+p60
+S"<method-wrapper '__delattr__' of exceptions.SyntaxError object>"
+p61
+sS'__repr__'
+p62
+S"<method-wrapper '__repr__' of exceptions.SyntaxError object>"
+p63
+sS'__hash__'
+p64
+S"<method-wrapper '__hash__' of exceptions.SyntaxError object>"
+p65
+ssS'evalue'
+p66
+S'invalid table/column name "desc" is a "ALL" reserved SQL/NOSQL keyword'
+p67
+sS'request'
+p68
+cgluon.html
+XML_unpickle
+p69
+(S's\xaaS\x00\x00<div><table><tr><td style="font-weight:bold;vertical-align:top">ajax</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">application</td><td valign="top">:</td><td><div>siri_admin</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">args</td><td valign="top">:</td><td><div><table></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">body</td><td valign="top">:</td><td><div>&lt;cStringIO.StringO object at 0x5099420&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">cid</td><td valign="top">:</td><td><div>None</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">client</td><td valign="top">:</td><td><div>192.225.182.66</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">controller</td><td valign="top">:</td><td><div>default</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">cookies</td><td valign="top">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top">session_data_examples</td><td valign="top">:</td><td><div>0e0fe0b73045683cd3678555e9fd26cb:tbv4jnU6Tn7Xd9rWwnd0M3NC0t-iqnhRXZhM7GLxKydvHl-UYHgM9n4cpiox05v8perogZEdFwICovEqCOOZIIgJAZYUWOhfOrYg7o_S6ioE1VXqDboGwWxepVmiI23qG_GwIix0jbpWC0CjJ1Dg6RJ8jmHmujoD4Z0V48CxlOKvA03Jion14MA7gurlE7htey1XWpyhtV9Jun4fMijCi-nu0ZQRa0tYL4pkclhgTRKUMZI-R90zuvtM0H1BvjNXRuoxFq6QH2WTbcMpGHSq9BhR_FzNtA7Nqcbu60VgHkz6W0PMvlLSbSbWo3lj4zUX<table><tr><td style="font-weight:bold;vertical-align:top">comment</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">domain</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">expires</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">httponly</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">max-age</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">path</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">secure</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">version</td><td valign="top">:</td><td><div></div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">session_id_admin</td><td valign="top">:</td><td><div>192.225.182.66-d8a3b0ac-69b3-4120-8653-65682fba0015<table><tr><td style="font-weight:bold;vertical-align:top">comment</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">domain</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">expires</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">httponly</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">max-age</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">path</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">secure</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">version</td><td valign="top">:</td><td><div></div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">session_id_siri_admin</td><td valign="top">:</td><td><div>192.225.182.66-3a4789cb-f4e7-40b4-a610-b7f13c808316<table><tr><td style="font-weight:bold;vertical-align:top">comment</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">domain</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">expires</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">httponly</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">max-age</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">path</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">secure</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">version</td><td valign="top">:</td><td><div></div></td></tr></table></div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">env</td><td valign="top">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top">app_folders</td><td valign="top">:</td><td><div>set([&#x27;/home/SIRI/web2py/applications/siri_admin/&#x27;, &#x27;/home/SIRI/web2py/applications/admin/&#x27;])</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">applications_parent</td><td valign="top">:</td><td><div>/home/SIRI/web2py</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">content_length</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">content_type</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">db_sessions</td><td valign="top">:</td><td><div>set([])</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">debugging</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">document_root</td><td valign="top">:</td><td><div>/usr/share/nginx/html</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">gluon_parent</td><td valign="top">:</td><td><div>/home/SIRI/web2py</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">http_accept</td><td valign="top">:</td><td><div>text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">http_accept_encoding</td><td valign="top">:</td><td><div>gzip, deflate</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">http_accept_language</td><td valign="top">:</td><td><div>en-US,en;q=0.5</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">http_cache_control</td><td valign="top">:</td><td><div>max-age=0</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">http_connection</td><td valign="top">:</td><td><div>close</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">http_cookie</td><td valign="top">:</td><td><div>__utma=133430031.1333926040.1377126199.1379435325.1381434783.14; __utmz=133430031.1377213648.6.2.utmcsr=google|utmccn=(organic)|utmcmd=organic|utmctr=(not%20provided); __utmc=133430031; session_data_examples=&quot;0e0fe0b73045683cd3678555e9fd26cb:tbv4jnU6Tn7Xd9rWwnd0M3NC0t-iqnhRXZhM7GLxKydvHl-UYHgM9n4cpiox05v8perogZEdFwICovEqCOOZIIgJAZYUWOhfOrYg7o_S6ioE1VXqDboGwWxepVmiI23qG_GwIix0jbpWC0CjJ1Dg6RJ8jmHmujoD4Z0V48CxlOKvA03Jion14MA7gurlE7htey1XWpyhtV9Jun4fMijCi-nu0ZQRa0tYL4pkclhgTRKUMZI-R90zuvtM0H1BvjNXRuoxFq6QH2WTbcMpGHSq9BhR_FzNtA7Nqcbu60VgHkz6W0PMvlLSbSbWo3lj4zUX&quot;; session_id_siri_admin=192.225.182.66-3a4789cb-f4e7-40b4-a610-b7f13c808316; session_id_admin=192.225.182.66-d8a3b0ac-69b3-4120-8653-65682fba0015</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">http_host</td><td valign="top">:</td><td><div>siri.pythonanywhere.com</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">http_referer</td><td valign="top">:</td><td><div>https://siri.pythonanywhere.com/siri_admin/default/editproject/6</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">http_user_agent</td><td valign="top">:</td><td><div>Mozilla/5.0 (Windows NT 6.1; WOW64; rv:24.0) Gecko/20100101 Firefox/24.0</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">http_x_forwarded_for</td><td valign="top">:</td><td><div>192.225.182.66</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">http_x_real_ip</td><td valign="top">:</td><td><div>192.225.182.66</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">https</td><td valign="top">:</td><td><div>on</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">is_jython</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">is_pypy</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">local_hosts</td><td valign="top">:</td><td><div><table><tr><td><div>::ffff:127.0.0.1</div></td></tr><tr><td><div>::1</div></td></tr><tr><td><div>50.19.109.98</div></td></tr><tr><td><div>127.0.0.1</div></td></tr><tr><td><div>glenn-liveweb2</div></td></tr><tr><td><div>siri.pythonanywhere.com</div></td></tr><tr><td><div>localhost</div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">path_info</td><td valign="top">:</td><td><div>/siri_admin/default/manageprojects</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">query_string</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">remote_addr</td><td valign="top">:</td><td><div>10.124.50.5</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">remote_port</td><td valign="top">:</td><td><div>49684</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">request_method</td><td valign="top">:</td><td><div>GET</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">request_uri</td><td valign="top">:</td><td><div>/siri_admin/default/manageprojects</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">script_name</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">server_name</td><td valign="top">:</td><td><div>siri.pythonanywhere.com</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">server_port</td><td valign="top">:</td><td><div>443</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">server_protocol</td><td valign="top">:</td><td><div>HTTP/1.1</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">uwsgi_node</td><td valign="top">:</td><td><div>glenn-liveweb2</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">uwsgi_version</td><td valign="top">:</td><td><div>1.9.16</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">web2py_path</td><td valign="top">:</td><td><div>/home/SIRI/web2py</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">web2py_version</td><td valign="top">:</td><td><div>2.5.1-stable+timestamp.2013.06.06.15.39.19</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi_errors</td><td valign="top">:</td><td><div>&lt;uwsgi_file__bin_user_wsgi_wrapper.ErrorLogWrapper object at 0x3879690&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi_file_wrapper</td><td valign="top">:</td><td><div>&lt;built-in function uwsgi_sendfile&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi_input</td><td valign="top">:</td><td><div>&lt;uwsgi._Input object at 0x7f38a963c888&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi_multiprocess</td><td valign="top">:</td><td><div>True</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi_multithread</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi_run_once</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi_url_scheme</td><td valign="top">:</td><td><div>https</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi_version</td><td valign="top">:</td><td><div><table><tr><td><div>1</div></td></tr><tr><td><div>0</div></td></tr></table></div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">extension</td><td valign="top">:</td><td><div>html</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">folder</td><td valign="top">:</td><td><div>/home/SIRI/web2py/applications/siri_admin/</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">function</td><td valign="top">:</td><td><div>manageprojects</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">get_vars</td><td valign="top">:</td><td><div><table></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">global_settings</td><td valign="top">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top">app_folders</td><td valign="top">:</td><td><div>set([&#x27;/home/SIRI/web2py/applications/siri_admin/&#x27;, &#x27;/home/SIRI/web2py/applications/admin/&#x27;])</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">applications_parent</td><td valign="top">:</td><td><div>/home/SIRI/web2py</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">db_sessions</td><td valign="top">:</td><td><div>set([])</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">debugging</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">gluon_parent</td><td valign="top">:</td><td><div>/home/SIRI/web2py</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">is_jython</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">is_pypy</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">local_hosts</td><td valign="top">:</td><td><div><table><tr><td><div>::ffff:127.0.0.1</div></td></tr><tr><td><div>::1</div></td></tr><tr><td><div>50.19.109.98</div></td></tr><tr><td><div>127.0.0.1</div></td></tr><tr><td><div>glenn-liveweb2</div></td></tr><tr><td><div>siri.pythonanywhere.com</div></td></tr><tr><td><div>localhost</div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">web2py_version</td><td valign="top">:</td><td><div>2.5.1-stable+timestamp.2013.06.06.15.39.19</div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">is_https</td><td valign="top">:</td><td><div>True</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">is_local</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">is_restful</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">now</td><td valign="top">:</td><td><div>datetime.datetime(2013, 10, 11, 18, 7, 21, 513042)</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">post_vars</td><td valign="top">:</td><td><div><table></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">raw_args</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">raw_extension</td><td valign="top">:</td><td><div>None</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">url</td><td valign="top">:</td><td><div>/siri_admin/default/manageprojects</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">utcnow</td><td valign="top">:</td><td><div>datetime.datetime(2013, 10, 11, 18, 7, 21, 526254)</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">uuid</td><td valign="top">:</td><td><div>siri_admin/192.225.182.66.2013-10-11.18-07-21.27ff6bf4-8bc6-4afd-906e-c5c1dcc952d2</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">vars</td><td valign="top">:</td><td><div><table></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi</td><td valign="top">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top">environ</td><td valign="top">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top">CONTENT_LENGTH</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">CONTENT_TYPE</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">DOCUMENT_ROOT</td><td valign="top">:</td><td><div>/usr/share/nginx/html</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">HTTPS</td><td valign="top">:</td><td><div>on</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">HTTP_ACCEPT</td><td valign="top">:</td><td><div>text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">HTTP_ACCEPT_ENCODING</td><td valign="top">:</td><td><div>gzip, deflate</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">HTTP_ACCEPT_LANGUAGE</td><td valign="top">:</td><td><div>en-US,en;q=0.5</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">HTTP_CACHE_CONTROL</td><td valign="top">:</td><td><div>max-age=0</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">HTTP_CONNECTION</td><td valign="top">:</td><td><div>close</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">HTTP_COOKIE</td><td valign="top">:</td><td><div>__utma=133430031.1333926040.1377126199.1379435325.1381434783.14; __utmz=133430031.1377213648.6.2.utmcsr=google|utmccn=(organic)|utmcmd=organic|utmctr=(not%20provided); __utmc=133430031; session_data_examples=&quot;0e0fe0b73045683cd3678555e9fd26cb:tbv4jnU6Tn7Xd9rWwnd0M3NC0t-iqnhRXZhM7GLxKydvHl-UYHgM9n4cpiox05v8perogZEdFwICovEqCOOZIIgJAZYUWOhfOrYg7o_S6ioE1VXqDboGwWxepVmiI23qG_GwIix0jbpWC0CjJ1Dg6RJ8jmHmujoD4Z0V48CxlOKvA03Jion14MA7gurlE7htey1XWpyhtV9Jun4fMijCi-nu0ZQRa0tYL4pkclhgTRKUMZI-R90zuvtM0H1BvjNXRuoxFq6QH2WTbcMpGHSq9BhR_FzNtA7Nqcbu60VgHkz6W0PMvlLSbSbWo3lj4zUX&quot;; session_id_siri_admin=192.225.182.66-3a4789cb-f4e7-40b4-a610-b7f13c808316; session_id_admin=192.225.182.66-d8a3b0ac-69b3-4120-8653-65682fba0015</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">HTTP_HOST</td><td valign="top">:</td><td><div>siri.pythonanywhere.com</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">HTTP_REFERER</td><td valign="top">:</td><td><div>https://siri.pythonanywhere.com/siri_admin/default/editproject/6</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">HTTP_USER_AGENT</td><td valign="top">:</td><td><div>Mozilla/5.0 (Windows NT 6.1; WOW64; rv:24.0) Gecko/20100101 Firefox/24.0</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">HTTP_X_FORWARDED_FOR</td><td valign="top">:</td><td><div>192.225.182.66</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">HTTP_X_REAL_IP</td><td valign="top">:</td><td><div>192.225.182.66</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">PATH_INFO</td><td valign="top">:</td><td><div>/siri_admin/default/manageprojects</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">QUERY_STRING</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">REMOTE_ADDR</td><td valign="top">:</td><td><div>10.124.50.5</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">REMOTE_PORT</td><td valign="top">:</td><td><div>49684</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">REQUEST_METHOD</td><td valign="top">:</td><td><div>GET</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">REQUEST_URI</td><td valign="top">:</td><td><div>/siri_admin/default/manageprojects</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">SCRIPT_NAME</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">SERVER_NAME</td><td valign="top">:</td><td><div>siri.pythonanywhere.com</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">SERVER_PORT</td><td valign="top">:</td><td><div>443</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">SERVER_PROTOCOL</td><td valign="top">:</td><td><div>HTTP/1.1</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">uwsgi.node</td><td valign="top">:</td><td><div>glenn-liveweb2</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">uwsgi.version</td><td valign="top">:</td><td><div>1.9.16</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi.errors</td><td valign="top">:</td><td><div>&lt;uwsgi_file__bin_user_wsgi_wrapper.ErrorLogWrapper object at 0x3879690&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi.file_wrapper</td><td valign="top">:</td><td><div>&lt;built-in function uwsgi_sendfile&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi.input</td><td valign="top">:</td><td><div>&lt;cStringIO.StringO object at 0x5099420&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi.multiprocess</td><td valign="top">:</td><td><div>True</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi.multithread</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi.run_once</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi.url_scheme</td><td valign="top">:</td><td><div>https</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi.version</td><td valign="top">:</td><td><div>1</div></td></tr></table></div></td></tr></table></div></td></tr></table></div>'
+tRp70
+sS'frames'
+p71
+(lp72
+(dp73
+S'file'
+p74
+S'/home/SIRI/web2py/gluon/restricted.py'
+p75
+sS'dump'
+p76
+(dp77
+S'environment'
+p78
+S"{'A': <class 'gluon.html.A'>, 'ANY_OF': <class 'gluon.validators.ANY_OF'>, 'Auth': <class 'gluon.tools.Auth'>, 'B': <class 'gluon.html.B'>, 'BEAUTIFY': <class 'gluon.html.BEAUTIFY'>, 'BODY': <class 'gluon.html.BODY'>, 'BR': <class 'gluon.html.BR'>, 'BUTTON': <class 'gluon.html.BUTTON'>, 'CAT': <class 'gluon.html.CAT'>, 'CENTER': <class 'gluon.html.CENTER'>, ...}"
+p79
+sS'ccode'
+p80
+S'<code object <module> at 0x4865b30, file "/home/...y/applications/siri_admin/models/db.py", line 12>'
+p81
+ssS'lnum'
+p82
+I212
+sS'lines'
+p83
+(dp84
+I207
+S'    try:'
+p85
+sI208
+S'        if isinstance(code, types.CodeType):'
+p86
+sI209
+S'            ccode = code'
+p87
+sI210
+S'        else:'
+p88
+sI211
+S'            ccode = compile2(code, layer)'
+p89
+sI212
+S'        exec ccode in environment'
+p90
+sI213
+S'    except HTTP:'
+p91
+sI214
+S'        raise'
+p92
+sI215
+S'    except RestrictedError:'
+p93
+sI216
+S'        # do not encapsulate (obfuscate) the original RestrictedError'
+p94
+ssS'call'
+p95
+S"(code='# -*- coding: utf-8 -*-\\n\\n#######################...nable auditing\\nauth.enable_record_versioning(db)\\n', environment={'A': <class 'gluon.html.A'>, 'ANY_OF': <class 'gluon.validators.ANY_OF'>, 'Auth': <class 'gluon.tools.Auth'>, 'B': <class 'gluon.html.B'>, 'BEAUTIFY': <class 'gluon.html.BEAUTIFY'>, 'BODY': <class 'gluon.html.BODY'>, 'BR': <class 'gluon.html.BR'>, 'BUTTON': <class 'gluon.html.BUTTON'>, 'CAT': <class 'gluon.html.CAT'>, 'CENTER': <class 'gluon.html.CENTER'>, ...}, layer='/home/SIRI/web2py/applications/siri_admin/models/db.py')"
+p96
+sS'func'
+p97
+S'restricted'
+p98
+sa(dp99
+g74
+S'/home/SIRI/web2py/applications/siri_admin/models/db.py'
+p100
+sg76
+(dp101
+S'Field'
+p102
+S"<class 'gluon.dal.Field'>"
+p103
+ssg82
+I118
+sg83
+(dp104
+I113
+S"    Field('contact_email', 'string', required=True),"
+p105
+sI114
+S"    Field('contact_loc', 'string'),"
+p106
+sI115
+S"    Field('num_students', 'integer'),"
+p107
+sI116
+S"    Field('reviewed', 'boolean'),"
+p108
+sI117
+S"    Field('contracted', 'boolean'),"
+p109
+sI118
+S"    Field('active', 'boolean')"
+p110
+sI119
+S')'
+sI120
+S'db.siri_projects.reviewed.default=False'
+p111
+sI121
+S''
+sI122
+S"db.define_table('siri_mentors',"
+p112
+ssg95
+S'()'
+p113
+sg97
+S'<module>'
+p114
+sa(dp115
+g74
+S'/home/SIRI/web2py/gluon/dal.py'
+p116
+sg76
+(dp117
+S'fields'
+p118
+S'(<gluon.dal.Field object>, <gluon.dal.Field object>, <gluon.dal.Field object>, <gluon.dal.Field object>, <gluon.dal.Field object>, <gluon.dal.Field object>, <gluon.dal.Field object>, <gluon.dal.Field object>, <gluon.dal.Field object>, <gluon.dal.Field object>, <gluon.dal.Field object>, <gluon.dal.Field object>)'
+p119
+sS'self'
+p120
+S'<DAL uri="sqlite://storage.sqlite">'
+p121
+sS'args'
+p122
+g21
+sS'tablename'
+p123
+S"'siri_projects'"
+p124
+sS'table'
+p125
+S'undefined'
+p126
+sS'self.lazy_define_table'
+p127
+S'<bound method DAL.lazy_define_table of <DAL uri="sqlite://storage.sqlite">>'
+p128
+ssg82
+I7788
+sg83
+(dp129
+I7783
+S'                    % (tablename,invalid_args))'
+p130
+sI7784
+S'        if self._lazy_tables and not tablename in self._LAZY_TABLES:'
+p131
+sI7785
+S'            self._LAZY_TABLES[tablename] = (tablename,fields,args)'
+p132
+sI7786
+S'            table = None'
+p133
+sI7787
+S'        else:'
+p134
+sI7788
+S'            table = self.lazy_define_table(tablename,*fields,**args)'
+p135
+sI7789
+S'        if not tablename in self.tables:'
+p136
+sI7790
+S'            self.tables.append(tablename)'
+p137
+sI7791
+S'        return table'
+p138
+sI7792
+S''
+ssg95
+S'(self=<DAL uri="sqlite://storage.sqlite">, tablename=\'siri_projects\', *fields=(<gluon.dal.Field object>, <gluon.dal.Field object>, <gluon.dal.Field object>, <gluon.dal.Field object>, <gluon.dal.Field object>, <gluon.dal.Field object>, <gluon.dal.Field object>, <gluon.dal.Field object>, <gluon.dal.Field object>, <gluon.dal.Field object>, <gluon.dal.Field object>, <gluon.dal.Field object>), **args={})'
+p139
+sg97
+S'define_table'
+p140
+sa(dp141
+g74
+S'/home/SIRI/web2py/gluon/dal.py'
+p142
+sg76
+(dp143
+S'fields'
+p144
+S'(<gluon.dal.Field object>, <gluon.dal.Field object>, <gluon.dal.Field object>, <gluon.dal.Field object>, <gluon.dal.Field object>, <gluon.dal.Field object>, <gluon.dal.Field object>, <gluon.dal.Field object>, <gluon.dal.Field object>, <gluon.dal.Field object>, <gluon.dal.Field object>, <gluon.dal.Field object>)'
+p145
+sS'self'
+p146
+S'<DAL uri="sqlite://storage.sqlite">'
+p147
+sS'args'
+p148
+g21
+sS'tablename'
+p149
+S"'siri_projects'"
+p150
+sS'table_class'
+p151
+S"<class 'gluon.dal.Table'>"
+p152
+sS'table'
+p153
+g126
+ssg82
+I7805
+sg83
+(dp154
+I7808
+S'        # must follow above line to handle self references'
+p155
+sI7809
+S'        table._create_references()'
+p156
+sI7800
+S'        common_fields = self._common_fields'
+p157
+sI7801
+S'        if common_fields:'
+p158
+sI7802
+S'            fields = list(fields) + list(common_fields)'
+p159
+sI7803
+S''
+sI7804
+S"        table_class = args_get('table_class',Table)"
+p160
+sI7805
+S'        table = table_class(self, tablename, *fields, **args)'
+p161
+sI7806
+S'        table._actual = True'
+p162
+sI7807
+S'        self[tablename] = table'
+p163
+ssg95
+S'(self=<DAL uri="sqlite://storage.sqlite">, tablename=\'siri_projects\', *fields=(<gluon.dal.Field object>, <gluon.dal.Field object>, <gluon.dal.Field object>, <gluon.dal.Field object>, <gluon.dal.Field object>, <gluon.dal.Field object>, <gluon.dal.Field object>, <gluon.dal.Field object>, <gluon.dal.Field object>, <gluon.dal.Field object>, <gluon.dal.Field object>, <gluon.dal.Field object>), **args={})'
+p164
+sg97
+S'lazy_define_table'
+p165
+sa(dp166
+g74
+S'/home/SIRI/web2py/gluon/dal.py'
+p167
+sg76
+(dp168
+S'field_name'
+p169
+S"'desc'"
+p170
+sS'db.check_reserved_keyword'
+p171
+S'<bound method DAL.check_reserved_keyword of <DAL uri="sqlite://storage.sqlite">>'
+p172
+sS'db'
+p173
+S'<DAL uri="sqlite://storage.sqlite">'
+p174
+ssg82
+I8278
+sg83
+(dp175
+I8273
+S'        lower_fieldnames = set()'
+p176
+sI8274
+S"        reserved = dir(Table) + ['fields']"
+p177
+sI8275
+S'        for field in fields:'
+p178
+sI8276
+S'            field_name = field.name'
+p179
+sI8277
+S'            if db and db.check_reserved:'
+p180
+sI8278
+S'                db.check_reserved_keyword(field_name)'
+p181
+sI8279
+S'            elif field_name in reserved:'
+p182
+sI8280
+S'                raise SyntaxError("field name %s not allowed" % field_name)'
+p183
+sI8281
+S''
+sI8282
+S'            if field_name.lower() in lower_fieldnames:'
+p184
+ssg95
+S'(self=<Table siri_projects (id,name)>, db=<DAL uri="sqlite://storage.sqlite">, tablename=\'siri_projects\', *fields=[<gluon.dal.Field object>, <gluon.dal.Field object>, <gluon.dal.Field object>, <gluon.dal.Field object>, <gluon.dal.Field object>, <gluon.dal.Field object>, <gluon.dal.Field object>, <gluon.dal.Field object>, <gluon.dal.Field object>, <gluon.dal.Field object>, <gluon.dal.Field object>, <gluon.dal.Field object>, <gluon.dal.Field object>], **args={})'
+p185
+sg97
+g24
+sa(dp186
+g74
+S'/home/SIRI/web2py/gluon/dal.py'
+p187
+sg76
+(dp188
+S'backend.upper'
+p189
+S'<built-in method upper of str object>'
+p190
+sS'name'
+p191
+S"'desc'"
+p192
+sS'backend'
+p193
+S"'all'"
+p194
+ssg82
+I7507
+sg83
+(dp195
+I7502
+S"        ['all']"
+p196
+sI7503
+S'        """'
+p197
+sI7504
+S'        for backend in self.check_reserved:'
+p198
+sI7505
+S'            if name.upper() in self.RSK[backend]:'
+p199
+sI7506
+S'                raise SyntaxError('
+p200
+sI7507
+S'                    \'invalid table/column name "%s" is a "%s" reserved SQL/NOSQL keyword\' % (name, backend.upper()))'
+p201
+sI7508
+S''
+sI7509
+S'    def parse_as_rest(self,patterns,args,vars,queries=None,nested_select=True):'
+p202
+sI7510
+S'        """'
+p203
+sI7511
+S'        EXAMPLE:'
+p204
+ssg95
+S'(self=<DAL uri="sqlite://storage.sqlite">, name=\'desc\')'
+p205
+sg97
+S'check_reserved_keyword'
+p206
+sasS'pyver'
+p207
+S'Python 2.7.4: /usr/local/bin/uwsgi (prefix: /usr)'
+p208
+sS'session'
+p209
+g69
+(S's\xf2\x08\x00\x00<div><table><tr><td style="font-weight:bold;vertical-align:top">auth</td><td valign="top">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top">expiration</td><td valign="top">:</td><td><div>3600</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">hmac_key</td><td valign="top">:</td><td><div>f42acb5f-d32c-421b-9e01-64b673086b9e</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">last_visit</td><td valign="top">:</td><td><div>datetime.datetime(2013, 10, 11, 18, 7, 21, 513042)</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">remember</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">user</td><td valign="top">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top">email</td><td valign="top">:</td><td><div>evancaldwell@yahoo.com</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">first_name</td><td valign="top">:</td><td><div>Evan</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">id</td><td valign="top">:</td><td><div>1L</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">last_name</td><td valign="top">:</td><td><div>Caldwell</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">registration_id</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">registration_key</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">reset_password_key</td><td valign="top">:</td><td><div></div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">user_groups</td><td valign="top">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top">1</td><td valign="top">:</td><td><div>user_1</div></td></tr></table></div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">flash</td><td valign="top">:</td><td><div>None</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">last_orderby</td><td valign="top">:</td><td><div>None</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">last_query</td><td valign="top">:</td><td><div>db.auth_membership.id&gt;0</div></td></tr></table></div>'
+tRp210
+sS'etype'
+p211
+S"<type 'exceptions.SyntaxError'>"
+p212
+sS'date'
+p213
+S'Fri Oct 11 18:07:21 2013'
+p214
+sS'response'
+p215
+g69
+(S's\xea\x11\x00\x00<div><table><tr><td style="font-weight:bold;vertical-align:top">body</td><td valign="top">:</td><td><div>&lt;cStringIO.StringO object at 0x5273960&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">cookies</td><td valign="top">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top">session_id_siri_admin</td><td valign="top">:</td><td><div>192.225.182.66-3a4789cb-f4e7-40b4-a610-b7f13c808316<table><tr><td style="font-weight:bold;vertical-align:top">comment</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">domain</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">expires</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">httponly</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">max-age</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">path</td><td valign="top">:</td><td><div>/</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">secure</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">version</td><td valign="top">:</td><td><div></div></td></tr></table></div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">delimiters</td><td valign="top">:</td><td><div><table><tr><td><div>{{</div></td></tr><tr><td><div>}}</div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">files</td><td valign="top">:</td><td><div><table></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">flash</td><td valign="top">:</td><td><div>Success!</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">generic_patterns</td><td valign="top">:</td><td><div><table></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">headers</td><td valign="top">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top">X-Powered-By</td><td valign="top">:</td><td><div>web2py</div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">menu</td><td valign="top">:</td><td><div><table></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">meta</td><td valign="top">:</td><td><div><table></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">models_to_run</td><td valign="top">:</td><td><div><table><tr><td><div>^\\w+\\.py$</div></td></tr><tr><td><div>^default/\\w+\\.py$</div></td></tr><tr><td><div>^default/manageprojects/\\w+\\.py$</div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">postprocessing</td><td valign="top">:</td><td><div><table></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">session_cookie_expires</td><td valign="top">:</td><td><div>None</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">session_data_name</td><td valign="top">:</td><td><div>session_data_siri_admin</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">session_file</td><td valign="top">:</td><td><div>&lt;open file &#x27;/home/SIRI/web2py/applications/siri_admin/sessions/192.225.182.66-3a4789cb-f4e7-40b4-a610-b7f13c808316&#x27;, mode &#x27;rb+&#x27; at 0x4eaf270&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">session_filename</td><td valign="top">:</td><td><div>/home/SIRI/web2py/applications/siri_admin/sessions/192.225.182.66-3a4789cb-f4e7-40b4-a610-b7f13c808316</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">session_id</td><td valign="top">:</td><td><div>192.225.182.66-3a4789cb-f4e7-40b4-a610-b7f13c808316</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">session_id_name</td><td valign="top">:</td><td><div>session_id_siri_admin</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">session_locked</td><td valign="top">:</td><td><div>True</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">session_new</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">session_storage_type</td><td valign="top">:</td><td><div>file</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">status</td><td valign="top">:</td><td><div>200</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">view</td><td valign="top">:</td><td><div>default/manageprojects.html</div></td></tr></table></div>'
+tRp216
+sS'locals'
+p217
+(dp218
+S'self'
+p219
+S'<DAL uri="sqlite://storage.sqlite">'
+p220
+sS'name'
+p221
+S"'desc'"
+p222
+sS'backend'
+p223
+S"'all'"
+p224
+sssS'traceback'
+p225
+S'Traceback (most recent call last):\n  File "/home/SIRI/web2py/gluon/restricted.py", line 212, in restricted\n    exec ccode in environment\n  File "/home/SIRI/web2py/applications/siri_admin/models/db.py", line 118, in <module>\n    Field(\'active\', \'boolean\')\n  File "/home/SIRI/web2py/gluon/dal.py", line 7788, in define_table\n    table = self.lazy_define_table(tablename,*fields,**args)\n  File "/home/SIRI/web2py/gluon/dal.py", line 7805, in lazy_define_table\n    table = table_class(self, tablename, *fields, **args)\n  File "/home/SIRI/web2py/gluon/dal.py", line 8278, in __init__\n    db.check_reserved_keyword(field_name)\n  File "/home/SIRI/web2py/gluon/dal.py", line 7507, in check_reserved_keyword\n    \'invalid table/column name "%s" is a "%s" reserved SQL/NOSQL keyword\' % (name, backend.upper()))\nSyntaxError: invalid table/column name "desc" is a "ALL" reserved SQL/NOSQL keyword\n'
+p226
+s.
