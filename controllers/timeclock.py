@@ -60,19 +60,108 @@ def processinvoices():
           process a log of some sort
           display a processing icon and confirmation message
     """
+    
     form=FORM('Invoice Details:',
-              INPUT(_start='start', requires=IS_NOT_EMPTY()),
-              INPUT(_end='end', requires=IS_NOT_EMPTY()),
-              INPUT(_project='project', requires=IS_NOT_EMPTY()),
+              INPUT(_name='start', _class='date', requires=IS_NOT_EMPTY()),
+              INPUT(_name='end', _class='date', requires=IS_NOT_EMPTY()),
+              INPUT(_name='project', requires=IS_NOT_EMPTY()),
               INPUT(_type='submit'))
+
     if form.accepts(request,session):
         response.flash = 'form accepted'
     elif form.errors:
         response.flash = 'form has errors'
     else:
-        response.flash = 'please fill the form'
+        response.flash = 'please fill out the form'
+    # Get the vars from the form to process the invoices
+    start = form.vars.start
+    end = form.vars.end
+    project = form.vars.project
+    clockSet = None
+    empList = []
+    empNames = []
+    # Initialize a Google Docs client
+    gc = gspread.login('dawg3tt@gmail.com', 'mol090901!')
+    # Check to see if the form has been submitted
+    # TODO: tie this to the form submission, maybe using onvalidation
+    if start is not None:
+        response.flash = "Processing Invoices for " + project + ", period: " + start + " - " + end
+        # Convert form variables to date objects
+        start = datetime.strptime(start, "%m/%d/%Y")
+        end = datetime.strptime(end, "%m/%d/%Y")
+        # Query and select records from the database that match the form variables
+        query = (db.timeclock.work_date >= start) & (db.timeclock.work_date <= end) & (db.timeclock.project == project)
+        clockEntries = db(query).select(db.timeclock.ALL, orderby=~db.timeclock.work_date)
+        # Get a list of unique employee names from the time submissions
+        for item in clockEntries:
+            empList.append(item.usr_id)
+        empList = set(empList) # TODO: get names from employee idsx
+        for id in empList:
+            empNames.append(db(db.auth_user.id == id).select(db.auth_user.first_name))
+        # call functions to create and format invoices
+        # TODO: find a way to create new invoices programmatically
+        createInvoices(clockEntries, gc, start, end)
+        # formatIncoices()
+    else:
+        clockEntries = []
+        entryRange = []
 
-    return dict(form=form)
+
+    return dict(form=form, clockEntries=clockEntries, empList=empList, empNames=empNames)
+
+def convertGdOutput(entries):
+    # convert a set of time entries from the database to a valid Google Docs format
+    outputEntries = []
+    for entry in entries:
+        outputEntries.extend([entry.work_date, entry.description, entry.hours, 10, float(entry.hours) * 10])
+    return outputEntries
+
+def createInvoices(entries, gc, start, end):
+    """
+    A function to create a Google doc with an invoice or each employee
+    """
+    response.flash = "Creating Invoices"
+    totalHours = 0
+    for entry in entries:
+        totalHours += entry.hours
+    ss = gc.open("web2py_tester")
+    wks = ss.sheet1
+    newks = ss.add_worksheet(title='entries[0].usr_id', rows="70", cols="5") # TODO: make sheet name dynamic
+    headerRange = newks.range('A1:E15')
+    entryRange = newks.range('A16:E' + str(len(entries) + 15))
+    for cell in headerRange:
+        cell.value = ''
+    headerRange[0].value = "Invoice"
+    headerRange[10].value = "From:"
+    headerRange[13].value = "Period"
+    headerRange[18].value = "From:"
+    headerRange[19].value = "To:"
+    headerRange[23].value = start
+    headerRange[24].value = end
+    headerRange[40].value = "To:"
+    headerRange[41].value = "Deseret Digital Media"
+    headerRange[44].value = "Hours Total"
+    headerRange[46].value = "55 North 300 West Ste 500"
+    headerRange[49].value = totalHours
+    headerRange[51].value = "Salt Lake City, UT 84101"
+    headerRange[54].value = "Total"
+    headerRange[56].value = "801-333-7400"
+    headerRange[59].value = totalHours * 10
+    headerRange[70].value = "Date"
+    headerRange[71].value = "Description"
+    headerRange[72].value = "Hours"
+    headerRange[73].value = "Rate"
+    headerRange[74].value = "Subtotal"
+
+    outputEntries = convertGdOutput(entries)
+    i = 0
+    for cell in entryRange:
+        cell.value = outputEntries[i]
+        i += 1
+
+    newks.update_cells(headerRange)
+    newks.update_cells(entryRange)
+
 
 def calcHours(form):
     # TODO: make this ok for non 24 hour time
@@ -112,11 +201,11 @@ def gspreadtest():
     for cell in timeList:
         cell.value = ''
     # wks.update_cells(timeList)
-    newks = ss.add_worksheet(title='clockEntries[0].usr_id', rows="30", cols="6")
+    newks = ss.add_worksheet(title='clockEntries[0].usr_id', rows="70", cols="5")
     newks.update_cell(1,1, 'Invoice')
     copyRange = wks.range('A1:F30')
-    newRange = newks.range('A1:F30')
-    # for cell in newRange:
+    headerRange = newks.range('A1:F30')
+    # for cell in headerRange:
     #     cell.value = copyRange.value
     copyList = wks.get_all_values()
     newks.update_cells(copyRange)
