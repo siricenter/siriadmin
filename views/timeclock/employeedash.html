@@ -1,50 +1,83 @@
 {{extend 'layout.html'}}
-<div id="timeclock-form" style="float:left; width:40%">
-	<h1>Add Time</h1>
-	{{=form}}
+{{# TODO: convert the HTML to web2py helpers}}
+<div class="row">
+	<div id="span12 timeclock-entries">
+		<h1>Entries</h1>
+		<table class="table table-striped">
+			<thead>
+				<tr class="table-header">
+					<td>Date</td>
+					<td>Time In</td>
+					<td>Time Out</td>
+					<td>Description</td>
+					<td>Hours</td>
+					<td>Issue?</td>
+				</tr>
+			</thead>
+			<tbody>
+				{{if len(clockEntries) >= 15:}}
+					{{for i in xrange(15):}}
+					<tr>
+						<td>{{=clockEntries[i].work_date}}</td>
+						<td>{{=clockEntries[i].time_in}}</td>
+						<td>{{=clockEntries[i].time_out}}</td>
+						<td>{{=clockEntries[i].description}}</td>
+						<td>{{=clockEntries[i].hours}}</td>
+						<td>{{=A(I(_class="icon-exclamation-sign"), _href="mailto:e.caldwell@sirinstitute.org?Subject=Sending%20Test%20Email%20&Body=Test%20Message%20")}}</td>
+					</tr>
+					{{totalHours += clockEntries[i].hours}}
+					{{pass}}
+				{{else:}}
+					{{for entry in clockEntries:}}
+					<tr>
+						<td>{{=entry.work_date}}</td>
+						<td>{{=entry.time_in}}</td>
+						<td>{{=entry.time_out}}</td>
+						<td>{{=entry.description}}</td>
+						<td>{{=entry.hours}}</td>
+						<td>
+							<a class="" data-target="#contact_modal" data-toggle="modal"><i class="icon-exclamation-sign"></i></a>
+						</td>
+					</tr>
+					{{totalHours += entry.hours}}
+					{{pass}}
+				{{pass}}
+			</tbody>
+			<tfoot>
+				<tr>
+					<td></td><td></td><td></td><td class="table-total" style="text-align:right">{{=B('Total Hours')}}:</td><td>{{=B("%.2f" % totalHours)}}</td>
+				</tr>
+			</tfoot>
+		</table>
+		{{=A('See All', _href=URL('timeclock', 'displaytime'))}}
+	</div>
 </div>
-<div id="timeclock-entries" style="float:left; width:60%">
-	<h1>Entries</h1>
-	<table>
-		<thead>
-			<tr class="table-header">
-				<td>Date</td>
-				<td>Time In</td>
-				<td>Time Out</td>
-				<td>Description</td>
-				<td>Hours</td>
-			</tr>
-		</thead>
-		<tbody>
-			{{if len(clockEntries) >= 15:}}
-				{{for i in xrange(15):}}
-				<tr>
-					<td>{{=clockEntries[i].work_date}}</td>
-					<td>{{=clockEntries[i].time_in}}</td>
-					<td>{{=clockEntries[i].time_out}}</td>
-					<td>{{=clockEntries[i].description}}</td>
-					<td>{{=clockEntries[i].hours}}</td>
-				</tr>
-				{{totalHours += clockEntries[i].hours}}
-				{{pass}}
-			{{else:}}
-				{{for entry in clockEntries:}}
-				<tr>
-					<td>{{=entry.work_date}}</td>
-					<td>{{=entry.time_in}}</td>
-					<td>{{=entry.time_out}}</td>
-					<td>{{=entry.description}}</td>
-					<td>{{=entry.hours}}</td>
-				</tr>
-				{{totalHours += entry.hours}}
-				{{pass}}
-			{{pass}}
-		</tbody>
-		<tfoot>
-			<tr>
-				<td></td><td></td><td></td><td class="table-total" style="text-align:right">{{=B('Total Hours')}}:</td><td>{{=B(totalHours)}}</td>
-			</tr>
-		</tfoot>
-	</table>
-	{{=A('See All', _href=URL('timeclock', 'displaytime'))}}
+<hr>
+<div class="row">
+	<div id="span12 timeclock-form">
+		<h1>Add Time</h1>
+		{{=form}}
+		<!-- TODO: manual form submit didn't work
+		<form action="#" enctype="multipart/form-data" method="post">
+		  <input name="project" />
+		  <input name="work_date" class="date" />
+		  <input name="time_in" />
+		  <input name="time_in_ampm" />
+		  <input name="time_out" />
+		  <input name="time_out_ampm" />
+		  <input name="description" />
+		  <input type="submit" />
+		  <input type="hidden" name="_formname" value="enter_time" />
+		</form>
+		-->
+	</div>
+</div>
+
+<div id="contact_modal" class="modal hide fade">
+    <div class="modal-header"><button type="button" class="close" data-dismiss="modal">&times;</button>&nbsp;</div>
+    <div class="modal-body">
+    	{{=H1('Please ask your question')}}
+    	{{=LOAD('timeclock', 'ask.load', ajax=True, ajax_trap=True, user_signature=True)}}
+    </div>
+    <div class="modal-footer">&nbsp;</div>
 </div>

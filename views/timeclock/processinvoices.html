@@ -8,6 +8,9 @@
 {{=BEAUTIFY(clockEntries)}}
 <p>form vars</p>
 {{=BEAUTIFY(form.vars)}}
-<p>set: </p>
-{{=BEAUTIFY(empList)}}
-{{=empNames}}
+<p>empInfo:</p>
+{{=BEAUTIFY(empInfo)}}
+<p>employee objects: </p>
+{{if len(empList) > 0:}}
+{{=BEAUTIFY(empList[1].totalHours)}}
+{{pass}}

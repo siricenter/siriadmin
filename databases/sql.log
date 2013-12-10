@@ -218,3 +218,7 @@ timestamp: 2013-10-11T18:13:22.817620
 ALTER TABLE siri_mentors ADD phone CHAR(512);
 timestamp: 2013-10-11T18:13:22.839027
 ALTER TABLE siri_mentors ADD organization CHAR(512);
+timestamp: 2013-12-07T05:16:44.345140
+ALTER TABLE timeclock ADD time_in_ampm CHAR(512);
+timestamp: 2013-12-07T05:16:44.424431
+ALTER TABLE timeclock ADD time_out_ampm CHAR(512);

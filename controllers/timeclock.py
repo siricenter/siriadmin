@@ -1,9 +1,18 @@
-@auth.requires_login()	
+########## Some Global Variables ##############
+PERIOD_START = datetime(2013, 10, 1) # TODO: implement tzinfo to make datetimes aware ############################
+PERIOD_END = datetime(2013, 12, 7)
+LAST_PERIOD_START = datetime(2013, 11, 10)
+LAST_PERIOD_END = datetime(2013, 11, 23)
+
+# TODO: increment periods ###############################################################################
+
+@auth.requires_login()
 def employeedash():
     """
     this will become the index page
+    TODO: create a clockin clockout feature ######################################################################
     """
-    fields = ['project','work_date','time_in','time_out','description']
+    fields = ['project','work_date','time_in','time_in_ampm','time_out','time_out_ampm','description']
     form = SQLFORM(db.timeclock, submit_button='Submit Hours', fields=fields)
     if form.process(onvalidation=calcHours).accepted:
         response.flash = 'Thank you for submitting your time ' + str(form.vars.hours)
@@ -12,20 +21,32 @@ def employeedash():
     else:
         response.flash = 'Welcome to your dashboard ' + session.auth.user.first_name
     response.title = session.auth.user.first_name + "'s Dashboard"
-    response.subtitle = 'Add or review time clock submissions'
+    response.subtitle = 'Current pay period is ' + PERIOD_START.strftime("%m/%d/%Y") + ' - ' + PERIOD_END.strftime("%m/%d/%Y")
 
-    query = db.timeclock.usr_id == session.auth.user.id
+    query = (db.timeclock.usr_id == session.auth.user.id)&(db.timeclock.work_date > PERIOD_START)&(db.timeclock.work_date < PERIOD_END)
     clockEntries = db(query).select(db.timeclock.ALL, orderby=~db.timeclock.work_date)
     totalHours = 0
-    # TODO: this is totaling all hours not just the displayed hours
-    # for entry in clockEntries:
-    #     totalHours += float(entry.hours)
+
     return dict(form=form, clockEntries=clockEntries, totalHours=totalHours)
+
+@auth.requires_signature()
+def ask():
+    form=SQLFORM.factory(
+        Field('message', 'text', requires=IS_NOT_EMPTY()))
+    if form.process().accepted:
+        if mail.send(to='e.caldwell@sirinstitute.org',
+                  subject='from %s' % session.auth.user.email,
+                  message = form.vars.question):
+            response.flash = 'Thank you'
+            response.js = "jQuery('#%s').hide()" % request.cid
+        else:
+            form.errors.your_email = "Unable to send the email"
+    return form
 
 @auth.requires_login()
 def addtime():
     """
-    Allows a loggedin user to add an entry for time worked
+    Allows a logged in user to add an entry for time worked
     """
     form = SQLFORM(db.timeclock)
     if form.process().accepted:
@@ -43,7 +64,7 @@ def addtime():
 def displaytime():
     """
     Shows the entries for the user that is logged in
-    TODO: add a 'request change' link for employees to request a change to an entry
+    TODO: fix the modal comment/question submit error  ################################
     """
     payPeriods = 0	
     query = db.timeclock.usr_id == session.auth.user.id
@@ -55,7 +76,7 @@ def displaytime():
 def processinvoices():
     """
     A view to process and export invoices or various clients
-    TODO: make it variable per client and per period via inputs of some type
+    TODO: make it variable per client and per period via inputs of some type #########################################
           have it call the gspread function
           process a log of some sort
           display a processing icon and confirmation message
@@ -77,13 +98,16 @@ def processinvoices():
     start = form.vars.start
     end = form.vars.end
     project = form.vars.project
+    # Initialize various variables to use in the function
     clockSet = None
+    empIdList = []
+    empInfo = []
     empList = []
-    empNames = []
+    totalHours = 0
     # Initialize a Google Docs client
     gc = gspread.login('dawg3tt@gmail.com', 'mol090901!')
     # Check to see if the form has been submitted
-    # TODO: tie this to the form submission, maybe using onvalidation
+    # TODO: tie this to the form submission, maybe using onvalidation ###################################################
     if start is not None:
         response.flash = "Processing Invoices for " + project + ", period: " + start + " - " + end
         # Convert form variables to date objects
@@ -92,47 +116,54 @@ def processinvoices():
         # Query and select records from the database that match the form variables
         query = (db.timeclock.work_date >= start) & (db.timeclock.work_date <= end) & (db.timeclock.project == project)
         clockEntries = db(query).select(db.timeclock.ALL, orderby=~db.timeclock.work_date)
-        # Get a list of unique employee names from the time submissions
+        # Get a list of unique employee ids from the time submissions
         for item in clockEntries:
-            empList.append(item.usr_id)
-        empList = set(empList) # TODO: get names from employee idsx
-        for id in empList:
-            empNames.append(db(db.auth_user.id == id).select(db.auth_user.first_name))
-        # call functions to create and format invoices
-        # TODO: find a way to create new invoices programmatically
-        createInvoices(clockEntries, gc, start, end)
-        # formatIncoices()
-    else:
+            empIdList.append(item.usr_id)
+        empIdList = set(empIdList)
+        # Build a list of Employee object instances
+        for id in empIdList:
+            empInfo = db(db.auth_user.id == id).select().first()
+            # Instantiate an Employee object, initialize an empty array for timeclock entries and a variable to hold the total hours
+            emp = Employee(id, empInfo.first_name, empInfo.last_name, empInfo.email)
+            emp.entries = []
+            emp.totalHours = 0
+            emp.project = project
+            # Add the timeclock entries for this employee to the empty array and calculate the total hours
+            for entry in clockEntries:
+                if entry.usr_id == id:
+                    emp.entries.append(entry)
+                    emp.totalHours += entry.hours
+            # Add the new Employee object to the Employee object list
+            empList.append(emp)
+
+        # For each id create an invoice and format it
+        for employee in empList:
+            # call functions to create and format invoices
+            # TODO: find a way to create new invoices programmatically ##################################################
+            createInvoices(employee, gc, start, end)
+            # formatIncoices()
+    
         clockEntries = []
         entryRange = []
 
 
-    return dict(form=form, clockEntries=clockEntries, empList=empList, empNames=empNames)
+    return dict(form=form, clockEntries=clockEntries, empList=empList, empInfo=empInfo)
 
-def convertGdOutput(entries):
-    # convert a set of time entries from the database to a valid Google Docs format
-    outputEntries = []
-    for entry in entries:
-        outputEntries.extend([entry.work_date, entry.description, entry.hours, 10, float(entry.hours) * 10])
-    return outputEntries
-
-def createInvoices(entries, gc, start, end):
+def createInvoices(employee, gc, start, end):
     """
     A function to create a Google doc with an invoice or each employee
     """
     response.flash = "Creating Invoices"
-    totalHours = 0
-    for entry in entries:
-        totalHours += entry.hours
     ss = gc.open("web2py_tester")
     wks = ss.sheet1
-    newks = ss.add_worksheet(title='entries[0].usr_id', rows="70", cols="5") # TODO: make sheet name dynamic
+    newks = ss.add_worksheet(title=employee.firstName + " " + employee.lastName, rows="70", cols="5")
     headerRange = newks.range('A1:E15')
-    entryRange = newks.range('A16:E' + str(len(entries) + 15))
+    entryRange = newks.range('A16:E' + str(len(employee.entries) + 15))
     for cell in headerRange:
         cell.value = ''
     headerRange[0].value = "Invoice"
     headerRange[10].value = "From:"
+    headerRange[11].value = employee.firstName + " " + employee.lastName
     headerRange[13].value = "Period"
     headerRange[18].value = "From:"
     headerRange[19].value = "To:"
@@ -142,18 +173,18 @@ def createInvoices(entries, gc, start, end):
     headerRange[41].value = "Deseret Digital Media"
     headerRange[44].value = "Hours Total"
     headerRange[46].value = "55 North 300 West Ste 500"
-    headerRange[49].value = totalHours
+    headerRange[49].value = employee.totalHours
     headerRange[51].value = "Salt Lake City, UT 84101"
     headerRange[54].value = "Total"
     headerRange[56].value = "801-333-7400"
-    headerRange[59].value = totalHours * 10
+    headerRange[59].value = employee.totalHours * 10
     headerRange[70].value = "Date"
     headerRange[71].value = "Description"
     headerRange[72].value = "Hours"
     headerRange[73].value = "Rate"
     headerRange[74].value = "Subtotal"
 
-    outputEntries = convertGdOutput(entries)
+    outputEntries = convertGdOutput(employee.entries)
     i = 0
     for cell in entryRange:
         cell.value = outputEntries[i]
@@ -162,34 +193,51 @@ def createInvoices(entries, gc, start, end):
     newks.update_cells(headerRange)
     newks.update_cells(entryRange)
 
+def convertGdOutput(entries):
+    # convert a set of time entries from the database to a valid Google Docs format
+    outputEntries = []
+    for entry in entries:
+        outputEntries.extend([entry.work_date, entry.description, entry.hours, 10, float(entry.hours) * 10])
+    return outputEntries
+
 
 def calcHours(form):
-    # TODO: make this ok for non 24 hour time
-    hourDiff = int(form.vars.time_out[0:2]) - int(form.vars.time_in[0:2])
-    minDiff = (int(form.vars.time_out[3:5]) - int(form.vars.time_in[3:5]))/60.0
-    form.vars.hours = hourDiff + minDiff
+    timeIn = form.vars.time_in
+    timeOut = form.vars.time_out
+    timeInAmPm = form.vars.time_in_ampm
+    timeOutAmPm = form.vars.time_out_ampm
+    timeInHour = int(timeIn[0:2])
+    timeInMin = int(timeIn[3:5])
+    timeOutHour = int(timeOut[0:2])
+    timeOutMin = int(timeOut[3:5])
+    if timeInAmPm == 'PM':
+        timeInHour += 12
+    if timeOutAmPm == 'PM':
+        timeOutHour += 12
+    hourDiff = timeOutHour - timeInHour
+    minDiff = (timeOutMin - timeInMin)/60.0
+    form.vars.hours = "%.2f" % (hourDiff + minDiff)
 
 def gdatatest():
     """
     testing integration with Google
     """
-
     gemail = 'dawg3tt@gmail.com'
     gpwd = 'mol090901!'
 
-    # ############ get docs list example #################################################
-    # # Create a client class which will make HTTP requests with Google Docs server.
-    # gdocsClient = gdata.docs.service.DocsService()
-    # # Authenticate using your Google Docs email address and password.
-    # gdocsClient.email = gemail
-    # gdocsClient.password = gpwd
-    # gdocsClient.source = 'SIRI Admin'
-    # gdocsClient.ProgrammaticLogin()
-    # # Query the server for an Atom feed containing a list of your documents.
-    # docsFeed = gdocsClient.GetDocumentListFeed()
-    # ####################################################################################
+    ############ get docs list example #################################################
+    # Create a client class which will make HTTP requests with Google Docs server.
+    gdataClient = gdata.docs.service.DocsService()
+    # Authenticate using your Google Docs email address and password.
+    gdataClient.email = gemail
+    gdataClient.password = gpwd
+    gdataClient.source = 'SIRI Admin'
+    gdataClient.ProgrammaticLogin()
+    # Query the server for an Atom feed containing a list of your documents.
+    docsFeed = gdataClient.GetDocumentListFeed()
+    ####################################################################################
     
-    # return dict(docsFeed=docsFeed)
+    return dict(docsFeed=docsFeed)
 
 def gspreadtest():
     clockEntries = db(db.timeclock.project == 'DDM').select(db.timeclock.ALL, orderby=~db.timeclock.usr_id)
@@ -218,7 +266,7 @@ def gspreadtest():
             wks.update_cell(idx, 1, entry.work_date)
             wks.update_cell(idx, 2, entry.description)
             wks.update_cell(idx, 3, entry.hours)
-            wks.update_cell(idx, 4, rate) #TODO: this should be replaced by a query for rate added by admin
+            wks.update_cell(idx, 4, rate) #TODO: this should be replaced by a query for rate added by admin ################
             wks.update_cell(idx, 5, rate*entry.hours)
             idx += 1
 

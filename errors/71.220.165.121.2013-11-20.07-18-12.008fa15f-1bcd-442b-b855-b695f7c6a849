@@ -1,0 +1,306 @@
+(dp1
+S'output'
+p2
+S"<type 'exceptions.IndentationError'> unexpected indent (timeclock.py, line 83)"
+p3
+sS'layer'
+p4
+S'/home/SIRI/web2py/applications/siri_admin/controllers/timeclock.py'
+p5
+sS'code'
+p6
+S'@auth.requires_login()\t\r\ndef employeedash():\r\n    """\r\n    this will become the index page\r\n    """\r\n    fields = [\'project\',\'work_date\',\'time_in\',\'time_out\',\'description\']\r\n    form = SQLFORM(db.timeclock, submit_button=\'Submit Hours\', fields=fields)\r\n    if form.process(onvalidation=calcHours).accepted:\r\n        response.flash = \'Thank you for submitting your time \' + str(form.vars.hours)\r\n    elif form.errors:\r\n        response.flash = \'There was an error on the form\'\r\n    else:\r\n        response.flash = \'Welcome to your dashboard \' + session.auth.user.first_name\r\n    response.title = session.auth.user.first_name + "\'s Dashboard"\r\n    response.subtitle = \'Add or review time clock submissions\'\r\n\r\n    query = db.timeclock.usr_id == session.auth.user.id\r\n    clockEntries = db(query).select(db.timeclock.ALL, orderby=~db.timeclock.work_date)\r\n    totalHours = 0\r\n    # TODO: this is totaling all hours not just the displayed hours\r\n    # for entry in clockEntries:\r\n    #     totalHours += float(entry.hours)\r\n    return dict(form=form, clockEntries=clockEntries, totalHours=totalHours)\r\n\r\n@auth.requires_login()\r\ndef addtime():\r\n    """\r\n    Allows a loggedin user to add an entry for time worked\r\n    """\r\n    form = SQLFORM(db.timeclock)\r\n    if form.process().accepted:\r\n        response.flash = \'Thank you for submitting your time\'\r\n    elif form.errors:\r\n        response.flash = \'There was an error on the form\'\r\n    else:\r\n        response.flash = \'Welcome \' + session.auth.user.first_name + \' your id is: \' + str(session.auth.user.id)\r\n    response.title = \'New Entry\'\r\n    response.subtitle = \'please fill out the form below\'\r\n    hoursTest = type(db.timeclock.time_in)\r\n    return dict(form=form, hoursTest=hoursTest)\r\n\r\n@auth.requires_login()\r\ndef displaytime():\r\n    """\r\n    Shows the entries for the user that is logged in\r\n    TODO: add a \'request change\' link for employees to request a change to an entry\r\n    """\r\n    payPeriods = 0\t\r\n    query = db.timeclock.usr_id == session.auth.user.id\r\n    grid = SQLFORM.grid(query, deletable=False, editable=False, create=False, orderby=~db.timeclock.work_date)\r\n\r\n    return dict(grid=grid)\r\n\r\n@auth.requires_login()\r\ndef processinvoices():\r\n    """\r\n    A view to process and export invoices or various clients\r\n    TODO: make it variable per client and per period via inputs of some type\r\n          have it call the gspread function\r\n          process a log of some sort\r\n          display a processing icon and confirmation message\r\n    \r\n    form=FORM(\'Invoice Details:\',\r\n              INPUT(_start=\'start\', requires=IS_NOT_EMPTY()),\r\n              INPUT(_end=\'end\', requires=IS_NOT_EMPTY()),\r\n              INPUT(_project=\'project\', requires=IS_NOT_EMPTY()),\r\n              INPUT(_type=\'submit\'))\r\n"""\r\n\r\n    form=FORM(\'Your name:\', INPUT(_name=\'name\'), INPUT(_type=\'submit\'))\r\n\r\n    if form.accepts(request,session):\r\n        response.flash = \'form accepted\'\r\n    elif form.errors:\r\n        response.flash = \'form has errors\'\r\n    else:\r\n        response.flash = \'please fill out the form\'\r\n"""\r\n    start = request.vars.start\r\n    end = request.vars.end\r\n    project = request.vars.project"""\r\n\r\n    return dict(form=form)\r\n\r\ndef calcHours(form):\r\n    # TODO: make this ok for non 24 hour time\r\n    hourDiff = int(form.vars.time_out[0:2]) - int(form.vars.time_in[0:2])\r\n    minDiff = (int(form.vars.time_out[3:5]) - int(form.vars.time_in[3:5]))/60.0\r\n    form.vars.hours = hourDiff + minDiff\r\n\r\ndef gdatatest():\r\n    """\r\n    testing integration with Google\r\n    """\r\n\r\n    gemail = \'dawg3tt@gmail.com\'\r\n    gpwd = \'mol090901!\'\r\n\r\n    # ############ get docs list example #################################################\r\n    # # Create a client class which will make HTTP requests with Google Docs server.\r\n    # gdocsClient = gdata.docs.service.DocsService()\r\n    # # Authenticate using your Google Docs email address and password.\r\n    # gdocsClient.email = gemail\r\n    # gdocsClient.password = gpwd\r\n    # gdocsClient.source = \'SIRI Admin\'\r\n    # gdocsClient.ProgrammaticLogin()\r\n    # # Query the server for an Atom feed containing a list of your documents.\r\n    # docsFeed = gdocsClient.GetDocumentListFeed()\r\n    # ####################################################################################\r\n    \r\n    # return dict(docsFeed=docsFeed)\r\n\r\ndef gspreadtest():\r\n    clockEntries = db(db.timeclock.project == \'DDM\').select(db.timeclock.ALL, orderby=~db.timeclock.usr_id)\r\n\r\n    gc = gspread.login(\'dawg3tt@gmail.com\', \'mol090901!\')\r\n    ss = gc.open("web2py_tester")\r\n    wks = ss.sheet1\r\n    timeList = wks.range(\'A16:E30\')\r\n    for cell in timeList:\r\n        cell.value = \'\'\r\n    # wks.update_cells(timeList)\r\n    newks = ss.add_worksheet(title=\'clockEntries[0].usr_id\', rows="30", cols="6")\r\n    newks.update_cell(1,1, \'Invoice\')\r\n    copyRange = wks.range(\'A1:F30\')\r\n    newRange = newks.range(\'A1:F30\')\r\n    # for cell in newRange:\r\n    #     cell.value = copyRange.value\r\n    copyList = wks.get_all_values()\r\n    newks.update_cells(copyRange)\r\n\r\n    update = False\r\n    if update:\r\n        rate = 10\r\n        idx = 16\r\n        for entry in clockEntries:\r\n            wks.update_cell(idx, 1, entry.work_date)\r\n            wks.update_cell(idx, 2, entry.description)\r\n            wks.update_cell(idx, 3, entry.hours)\r\n            wks.update_cell(idx, 4, rate) #TODO: this should be replaced by a query for rate added by admin\r\n            wks.update_cell(idx, 5, rate*entry.hours)\r\n            idx += 1\r\n\r\n    return dict(\r\n        timeList=timeList, \r\n        clockEntries=clockEntries, \r\n        wks=wks,\r\n        newks=newks,\r\n        copyRange=copyRange, \r\n        copyList=copyList\r\n        )\r\n\r\n# def copyCells(values, newks):\r\n#     for row in values:\r\n#         for cell in rows:\r\n\nresponse._vars=response._caller(processinvoices)\n'
+p7
+sS'snapshot'
+p8
+(dp9
+S'exception'
+p10
+(dp11
+S'__getslice__'
+p12
+S"<method-wrapper '__getslice__' of exceptions.IndentationError object>"
+p13
+sS'text'
+p14
+S"'    return dict(form=form)\\n'"
+p15
+sS'__str__'
+p16
+S"<method-wrapper '__str__' of exceptions.IndentationError object>"
+p17
+sS'__reduce__'
+p18
+S'<built-in method __reduce__ of exceptions.IndentationError object>'
+p19
+sS'__dict__'
+p20
+S'{}'
+p21
+sS'__sizeof__'
+p22
+S'<built-in method __sizeof__ of exceptions.IndentationError object>'
+p23
+sS'__init__'
+p24
+S"<method-wrapper '__init__' of exceptions.IndentationError object>"
+p25
+sS'__setattr__'
+p26
+S"<method-wrapper '__setattr__' of exceptions.IndentationError object>"
+p27
+sS'__reduce_ex__'
+p28
+S'<built-in method __reduce_ex__ of exceptions.IndentationError object>'
+p29
+sS'__new__'
+p30
+S'<built-in method __new__ of type object>'
+p31
+sS'__format__'
+p32
+S'<built-in method __format__ of exceptions.IndentationError object>'
+p33
+sS'__class__'
+p34
+S"<type 'exceptions.IndentationError'>"
+p35
+sS'filename'
+p36
+S"'/home/SIRI/web2py/applications/siri_admin/controllers/timeclock.py'"
+p37
+sS'lineno'
+p38
+S'83'
+p39
+sS'msg'
+p40
+S"'unexpected indent'"
+p41
+sS'__doc__'
+p42
+S"'Improper indentation.'"
+p43
+sS'__getitem__'
+p44
+S"<method-wrapper '__getitem__' of exceptions.IndentationError object>"
+p45
+sS'__setstate__'
+p46
+S'<built-in method __setstate__ of exceptions.IndentationError object>'
+p47
+sS'__getattribute__'
+p48
+S"<method-wrapper '__getattribute__' of exceptions.IndentationError object>"
+p49
+sS'print_file_and_line'
+p50
+S'None'
+p51
+sS'args'
+p52
+S"('unexpected indent', ('/home/SIRI/web2py/applications/siri_admin/controllers/timeclock.py', 83, 4, '    return dict(form=form)\\n'))"
+p53
+sS'__subclasshook__'
+p54
+S'<built-in method __subclasshook__ of type object>'
+p55
+sS'offset'
+p56
+S'4'
+sS'__unicode__'
+p57
+S'<built-in method __unicode__ of exceptions.IndentationError object>'
+p58
+sS'__delattr__'
+p59
+S"<method-wrapper '__delattr__' of exceptions.IndentationError object>"
+p60
+sS'__repr__'
+p61
+S"<method-wrapper '__repr__' of exceptions.IndentationError object>"
+p62
+sS'__hash__'
+p63
+S"<method-wrapper '__hash__' of exceptions.IndentationError object>"
+p64
+ssS'evalue'
+p65
+S'unexpected indent (timeclock.py, line 83)'
+p66
+sS'request'
+p67
+cgluon.html
+XML_unpickle
+p68
+(S'sXS\x00\x00<div><table><tr><td style="font-weight:bold;vertical-align:top">ajax</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">application</td><td valign="top">:</td><td><div>siri_admin</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">args</td><td valign="top">:</td><td><div><table></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">body</td><td valign="top">:</td><td><div>&lt;cStringIO.StringO object at 0x51d9e68&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">cid</td><td valign="top">:</td><td><div>None</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">client</td><td valign="top">:</td><td><div>71.220.165.121</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">controller</td><td valign="top">:</td><td><div>timeclock</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">cookies</td><td valign="top">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top">session_id_admin</td><td valign="top">:</td><td><div>71.220.191.104-bf7efe73-b0cc-4cd6-a55a-a2967e3a1d2f<table><tr><td style="font-weight:bold;vertical-align:top">comment</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">domain</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">expires</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">httponly</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">max-age</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">path</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">secure</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">version</td><td valign="top">:</td><td><div></div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">session_id_mqr</td><td valign="top">:</td><td><div>71.220.191.104-da5ee4f6-4ac4-49f3-918a-e877a2b1c13f<table><tr><td style="font-weight:bold;vertical-align:top">comment</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">domain</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">expires</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">httponly</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">max-age</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">path</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">secure</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">version</td><td valign="top">:</td><td><div></div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">session_id_siri_admin</td><td valign="top">:</td><td><div>71.220.165.121-0c43fbcf-eb94-4df6-9fce-d9f05a645653<table><tr><td style="font-weight:bold;vertical-align:top">comment</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">domain</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">expires</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">httponly</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">max-age</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">path</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">secure</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">version</td><td valign="top">:</td><td><div></div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">sessionid</td><td valign="top">:</td><td><div>69f928da60f5fe69e7ddca6ae3b28b20<table><tr><td style="font-weight:bold;vertical-align:top">comment</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">domain</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">expires</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">httponly</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">max-age</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">path</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">secure</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">version</td><td valign="top">:</td><td><div></div></td></tr></table></div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">env</td><td valign="top">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top">app_folders</td><td valign="top">:</td><td><div>set([&#x27;/home/SIRI/web2py/applications/mqr/&#x27;, &#x27;/home/SIRI/web2py/applications/siri_admin/&#x27;, &#x27;/home/SIRI/web2py/applications/admin/&#x27;])</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">applications_parent</td><td valign="top">:</td><td><div>/home/SIRI/web2py</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">content_length</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">content_type</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">db_sessions</td><td valign="top">:</td><td><div>set([])</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">debugging</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">document_root</td><td valign="top">:</td><td><div>/usr/share/nginx/html</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">gluon_parent</td><td valign="top">:</td><td><div>/home/SIRI/web2py</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">http_accept</td><td valign="top">:</td><td><div>text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">http_accept_encoding</td><td valign="top">:</td><td><div>gzip, deflate</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">http_accept_language</td><td valign="top">:</td><td><div>en-US,en;q=0.5</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">http_connection</td><td valign="top">:</td><td><div>close</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">http_cookie</td><td valign="top">:</td><td><div>__utma=133430031.1807339217.1380898194.1384723550.1384835183.11; __utmz=133430031.1380898194.1.1.utmcsr=(direct)|utmccn=(direct)|utmcmd=(none); __utmc=133430031; session_id_mqr=71.220.191.104-da5ee4f6-4ac4-49f3-918a-e877a2b1c13f; session_id_admin=71.220.191.104-bf7efe73-b0cc-4cd6-a55a-a2967e3a1d2f; sessionid=69f928da60f5fe69e7ddca6ae3b28b20; session_id_siri_admin=71.220.165.121-0c43fbcf-eb94-4df6-9fce-d9f05a645653</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">http_host</td><td valign="top">:</td><td><div>siri.pythonanywhere.com</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">http_user_agent</td><td valign="top">:</td><td><div>Mozilla/5.0 (Windows NT 6.3; WOW64; rv:25.0) Gecko/20100101 Firefox/25.0 FirePHP/0.7.4</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">http_x_forwarded_for</td><td valign="top">:</td><td><div>71.220.165.121</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">http_x_insight</td><td valign="top">:</td><td><div>activate</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">http_x_real_ip</td><td valign="top">:</td><td><div>71.220.165.121</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">https</td><td valign="top">:</td><td><div>on</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">is_jython</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">is_pypy</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">local_hosts</td><td valign="top">:</td><td><div><table><tr><td><div>::ffff:127.0.0.1</div></td></tr><tr><td><div>::1</div></td></tr><tr><td><div>50.19.109.98</div></td></tr><tr><td><div>127.0.0.1</div></td></tr><tr><td><div>glenn-liveweb2</div></td></tr><tr><td><div>siri.pythonanywhere.com</div></td></tr><tr><td><div>localhost</div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">path_info</td><td valign="top">:</td><td><div>/siri_admin/timeclock/processinvoices</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">query_string</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">remote_addr</td><td valign="top">:</td><td><div>10.86.185.124</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">remote_port</td><td valign="top">:</td><td><div>60637</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">request_method</td><td valign="top">:</td><td><div>GET</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">request_uri</td><td valign="top">:</td><td><div>/siri_admin/timeclock/processinvoices</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">script_name</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">server_name</td><td valign="top">:</td><td><div>siri.pythonanywhere.com</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">server_port</td><td valign="top">:</td><td><div>443</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">server_protocol</td><td valign="top">:</td><td><div>HTTP/1.1</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">uwsgi_node</td><td valign="top">:</td><td><div>glenn-liveweb2</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">uwsgi_version</td><td valign="top">:</td><td><div>1.9.16</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">web2py_path</td><td valign="top">:</td><td><div>/home/SIRI/web2py</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">web2py_version</td><td valign="top">:</td><td><div>2.5.1-stable+timestamp.2013.06.06.15.39.19</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi_errors</td><td valign="top">:</td><td><div>&lt;uwsgi_file__bin_user_wsgi_wrapper.ErrorLogWrapper object at 0x2f40bd0&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi_file_wrapper</td><td valign="top">:</td><td><div>&lt;built-in function uwsgi_sendfile&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi_input</td><td valign="top">:</td><td><div>&lt;uwsgi._Input object at 0x7f92cc750858&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi_multiprocess</td><td valign="top">:</td><td><div>True</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi_multithread</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi_run_once</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi_url_scheme</td><td valign="top">:</td><td><div>https</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi_version</td><td valign="top">:</td><td><div><table><tr><td><div>1</div></td></tr><tr><td><div>0</div></td></tr></table></div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">extension</td><td valign="top">:</td><td><div>html</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">folder</td><td valign="top">:</td><td><div>/home/SIRI/web2py/applications/siri_admin/</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">function</td><td valign="top">:</td><td><div>processinvoices</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">get_vars</td><td valign="top">:</td><td><div><table></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">global_settings</td><td valign="top">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top">app_folders</td><td valign="top">:</td><td><div>set([&#x27;/home/SIRI/web2py/applications/mqr/&#x27;, &#x27;/home/SIRI/web2py/applications/siri_admin/&#x27;, &#x27;/home/SIRI/web2py/applications/admin/&#x27;])</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">applications_parent</td><td valign="top">:</td><td><div>/home/SIRI/web2py</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">db_sessions</td><td valign="top">:</td><td><div>set([])</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">debugging</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">gluon_parent</td><td valign="top">:</td><td><div>/home/SIRI/web2py</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">is_jython</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">is_pypy</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">local_hosts</td><td valign="top">:</td><td><div><table><tr><td><div>::ffff:127.0.0.1</div></td></tr><tr><td><div>::1</div></td></tr><tr><td><div>50.19.109.98</div></td></tr><tr><td><div>127.0.0.1</div></td></tr><tr><td><div>glenn-liveweb2</div></td></tr><tr><td><div>siri.pythonanywhere.com</div></td></tr><tr><td><div>localhost</div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">web2py_version</td><td valign="top">:</td><td><div>2.5.1-stable+timestamp.2013.06.06.15.39.19</div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">is_https</td><td valign="top">:</td><td><div>True</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">is_local</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">is_restful</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">now</td><td valign="top">:</td><td><div>datetime.datetime(2013, 11, 20, 7, 18, 12, 445614)</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">post_vars</td><td valign="top">:</td><td><div><table></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">raw_args</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">raw_extension</td><td valign="top">:</td><td><div>None</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">url</td><td valign="top">:</td><td><div>/siri_admin/timeclock/processinvoices</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">utcnow</td><td valign="top">:</td><td><div>datetime.datetime(2013, 11, 20, 7, 18, 12, 445666)</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">uuid</td><td valign="top">:</td><td><div>siri_admin/71.220.165.121.2013-11-20.07-18-12.008fa15f-1bcd-442b-b855-b695f7c6a849</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">vars</td><td valign="top">:</td><td><div><table></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi</td><td valign="top">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top">environ</td><td valign="top">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top">CONTENT_LENGTH</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">CONTENT_TYPE</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">DOCUMENT_ROOT</td><td valign="top">:</td><td><div>/usr/share/nginx/html</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">HTTPS</td><td valign="top">:</td><td><div>on</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">HTTP_ACCEPT</td><td valign="top">:</td><td><div>text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">HTTP_ACCEPT_ENCODING</td><td valign="top">:</td><td><div>gzip, deflate</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">HTTP_ACCEPT_LANGUAGE</td><td valign="top">:</td><td><div>en-US,en;q=0.5</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">HTTP_CONNECTION</td><td valign="top">:</td><td><div>close</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">HTTP_COOKIE</td><td valign="top">:</td><td><div>__utma=133430031.1807339217.1380898194.1384723550.1384835183.11; __utmz=133430031.1380898194.1.1.utmcsr=(direct)|utmccn=(direct)|utmcmd=(none); __utmc=133430031; session_id_mqr=71.220.191.104-da5ee4f6-4ac4-49f3-918a-e877a2b1c13f; session_id_admin=71.220.191.104-bf7efe73-b0cc-4cd6-a55a-a2967e3a1d2f; sessionid=69f928da60f5fe69e7ddca6ae3b28b20; session_id_siri_admin=71.220.165.121-0c43fbcf-eb94-4df6-9fce-d9f05a645653</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">HTTP_HOST</td><td valign="top">:</td><td><div>siri.pythonanywhere.com</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">HTTP_USER_AGENT</td><td valign="top">:</td><td><div>Mozilla/5.0 (Windows NT 6.3; WOW64; rv:25.0) Gecko/20100101 Firefox/25.0 FirePHP/0.7.4</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">HTTP_X_FORWARDED_FOR</td><td valign="top">:</td><td><div>71.220.165.121</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">HTTP_X_INSIGHT</td><td valign="top">:</td><td><div>activate</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">HTTP_X_REAL_IP</td><td valign="top">:</td><td><div>71.220.165.121</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">PATH_INFO</td><td valign="top">:</td><td><div>/siri_admin/timeclock/processinvoices</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">QUERY_STRING</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">REMOTE_ADDR</td><td valign="top">:</td><td><div>10.86.185.124</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">REMOTE_PORT</td><td valign="top">:</td><td><div>60637</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">REQUEST_METHOD</td><td valign="top">:</td><td><div>GET</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">REQUEST_URI</td><td valign="top">:</td><td><div>/siri_admin/timeclock/processinvoices</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">SCRIPT_NAME</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">SERVER_NAME</td><td valign="top">:</td><td><div>siri.pythonanywhere.com</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">SERVER_PORT</td><td valign="top">:</td><td><div>443</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">SERVER_PROTOCOL</td><td valign="top">:</td><td><div>HTTP/1.1</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">uwsgi.node</td><td valign="top">:</td><td><div>glenn-liveweb2</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">uwsgi.version</td><td valign="top">:</td><td><div>1.9.16</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi.errors</td><td valign="top">:</td><td><div>&lt;uwsgi_file__bin_user_wsgi_wrapper.ErrorLogWrapper object at 0x2f40bd0&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi.file_wrapper</td><td valign="top">:</td><td><div>&lt;built-in function uwsgi_sendfile&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi.input</td><td valign="top">:</td><td><div>&lt;cStringIO.StringO object at 0x51d9e68&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi.multiprocess</td><td valign="top">:</td><td><div>True</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi.multithread</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi.run_once</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi.url_scheme</td><td valign="top">:</td><td><div>https</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi.version</td><td valign="top">:</td><td><div>1</div></td></tr></table></div></td></tr></table></div></td></tr></table></div>'
+tRp69
+sS'frames'
+p70
+(lp71
+(dp72
+S'file'
+p73
+S'/home/SIRI/web2py/gluon/restricted.py'
+p74
+sS'dump'
+p75
+(dp76
+S'code'
+p77
+S"'@auth.requires_login()\\t\\r\\ndef employeedash():\\r\\n  ...response._vars=response._caller(processinvoices)\\n'"
+p78
+sS'layer'
+p79
+S"'/home/SIRI/web2py/applications/siri_admin/controllers/timeclock.py'"
+p80
+sS'global compile2'
+p81
+S'<function compile2>'
+p82
+sS'ccode'
+p83
+S'undefined'
+p84
+ssS'lnum'
+p85
+I211
+sS'lines'
+p86
+(dp87
+I206
+S"    environment['__name__'] = '__restricted__'"
+p88
+sI207
+S'    try:'
+p89
+sI208
+S'        if isinstance(code, types.CodeType):'
+p90
+sI209
+S'            ccode = code'
+p91
+sI210
+S'        else:'
+p92
+sI211
+S'            ccode = compile2(code, layer)'
+p93
+sI212
+S'        exec ccode in environment'
+p94
+sI213
+S'    except HTTP:'
+p95
+sI214
+S'        raise'
+p96
+sI215
+S'    except RestrictedError:'
+p97
+ssS'call'
+p98
+S"(code='@auth.requires_login()\\t\\r\\ndef employeedash():\\r\\n  ...response._vars=response._caller(processinvoices)\\n', environment={'A': <class 'gluon.html.A'>, 'ANY_OF': <class 'gluon.validators.ANY_OF'>, 'Auth': <class 'gluon.tools.Auth'>, 'B': <class 'gluon.html.B'>, 'BEAUTIFY': <class 'gluon.html.BEAUTIFY'>, 'BODY': <class 'gluon.html.BODY'>, 'BR': <class 'gluon.html.BR'>, 'BUTTON': <class 'gluon.html.BUTTON'>, 'CAT': <class 'gluon.html.CAT'>, 'CENTER': <class 'gluon.html.CENTER'>, ...}, layer='/home/SIRI/web2py/applications/siri_admin/controllers/timeclock.py')"
+p99
+sS'func'
+p100
+S'restricted'
+p101
+sa(dp102
+g73
+S'/home/SIRI/web2py/gluon/restricted.py'
+p103
+sg75
+(dp104
+S'builtincompile'
+p105
+S'<built-in function compile>'
+p106
+sS'code'
+p107
+S"'@auth.requires_login()\\t\\r\\ndef employeedash():\\r\\n  ...response._vars=response._caller(processinvoices)\\n'"
+p108
+sS'code.rstrip'
+p109
+S'<built-in method rstrip of str object>'
+p110
+sS').replace'
+p111
+g84
+sS'layer'
+p112
+S"'/home/SIRI/web2py/applications/siri_admin/controllers/timeclock.py'"
+p113
+ssg85
+I194
+sg86
+(dp114
+I192
+S"    The +'\\n' is necessary else compile fails when code ends in a comment."
+p115
+sI193
+S'    """'
+p116
+sI194
+S"    return compile(code.rstrip().replace('\\r\\n', '\\n') + '\\n', layer, 'exec')"
+p117
+sI195
+S''
+sI196
+S''
+sI197
+S"def restricted(code, environment=None, layer='Unknown'):"
+p118
+sI198
+S'    """'
+p119
+sI189
+S''
+sI190
+S'def compile2(code, layer):'
+p120
+sI191
+S'    """'
+p121
+ssg98
+S"(code='@auth.requires_login()\\t\\r\\ndef employeedash():\\r\\n  ...response._vars=response._caller(processinvoices)\\n', layer='/home/SIRI/web2py/applications/siri_admin/controllers/timeclock.py')"
+p122
+sg100
+S'compile2'
+p123
+sasS'pyver'
+p124
+S'Python 2.7.5+: /usr/local/bin/uwsgi (prefix: /usr)'
+p125
+sS'session'
+p126
+g68
+(S's\x8c\x00\x00\x00<div><table><tr><td style="font-weight:bold;vertical-align:top">flash</td><td valign="top">:</td><td><div>None</div></td></tr></table></div>'
+tRp127
+sS'etype'
+p128
+S"<type 'exceptions.IndentationError'>"
+p129
+sS'date'
+p130
+S'Wed Nov 20 07:18:16 2013'
+p131
+sS'response'
+p132
+g68
+(S's\xe9,\x00\x00<div><table><tr><td style="font-weight:bold;vertical-align:top">body</td><td valign="top">:</td><td><div>&lt;cStringIO.StringO object at 0x2f55730&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">cookies</td><td valign="top">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top">session_id_siri_admin</td><td valign="top">:</td><td><div>71.220.165.121-0c43fbcf-eb94-4df6-9fce-d9f05a645653<table><tr><td style="font-weight:bold;vertical-align:top">comment</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">domain</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">expires</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">httponly</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">max-age</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">path</td><td valign="top">:</td><td><div>/</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">secure</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">version</td><td valign="top">:</td><td><div></div></td></tr></table></div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">delimiters</td><td valign="top">:</td><td><div><table><tr><td><div>{{</div></td></tr><tr><td><div>}}</div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">files</td><td valign="top">:</td><td><div><table></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">flash</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">generic_patterns</td><td valign="top">:</td><td><div><table></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">google_analytics_id</td><td valign="top">:</td><td><div>None</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">headers</td><td valign="top">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top">X-Powered-By</td><td valign="top">:</td><td><div>web2py</div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">logo</td><td valign="top">:</td><td><div><a class="brand" href="/siri_admin/default/clockadmin"><b>SIRI</b>&trade;&nbsp;</a></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">menu</td><td valign="top">:</td><td><div><table><tr><td><div><table><tr><td><div>Home</div></td></tr><tr><td><div>False</div></td></tr><tr><td><div>/siri_admin/default/index</div></td></tr><tr><td><div><table></table></div></td></tr></table></div></td></tr><tr><td><div><table><tr><td><div><span class="highlighted">web2py</span></div></td></tr><tr><td><div>False</div></td></tr><tr><td><div>http://web2py.com</div></td></tr><tr><td><div><table><tr><td><div><table><tr><td><div>My Sites</div></td></tr><tr><td><div>False</div></td></tr><tr><td><div>/admin/default/site</div></td></tr></table></div></td></tr><tr><td><div><table><tr><td><div>This App</div></td></tr><tr><td><div>False</div></td></tr><tr><td><div>/admin/default/design/siri_admin</div></td></tr><tr><td><div>[(&lt;lazyT &#x27;Controller&#x27;&gt;, False, &#x27;/admin/default/edit/siri_admin/controllers/timeclock.py&#x27;), (&lt;lazyT &#x27;View&#x27;&gt;, False, &#x27;/admin/default/edit/siri_admin/views/timeclock/processinvoices.html&#x27;), (&lt;lazyT &#x27;Layout&#x27;&gt;, False, &#x27;/admin/default/edit/siri_admin/views/layout.html&#x27;), (&lt;lazyT &#x27;Stylesheet&#x27;&gt;, False, &#x27;/admin/default/edit/siri_admin/static/css/web2py.css&#x27;), (&lt;lazyT &#x27;DB Model&#x27;&gt;, False, &#x27;/admin/default/edit/siri_admin/models/db.py&#x27;), (&lt;lazyT &#x27;Menu Model&#x27;&gt;, False, &#x27;/admin/default/edit/siri_admin/models/menu.py&#x27;), (&lt;lazyT &#x27;Database&#x27;&gt;, False, &#x27;/siri_admin/appadmin/index&#x27;), (&lt;lazyT &#x27;Errors&#x27;&gt;, False, &#x27;/admin/default/errors/siri_admin&#x27;), (&lt;lazyT &#x27;About&#x27;&gt;, False, &#x27;/admin/default/about/siri_admin&#x27;)]</div></td></tr></table></div></td></tr><tr><td><div><table><tr><td><div>web2py.com</div></td></tr><tr><td><div>False</div></td></tr><tr><td><div>http://www.web2py.com</div></td></tr><tr><td><div>[(&lt;lazyT &#x27;Download&#x27;&gt;, False, &#x27;http://www.web2py.com/examples/default/download&#x27;), (&lt;lazyT &#x27;Support&#x27;&gt;, False, &#x27;http://www.web2py.com/examples/default/support&#x27;), (&lt;lazyT &#x27;Demo&#x27;&gt;, False, &#x27;http://web2py.com/demo_admin&#x27;), (&lt;lazyT &#x27;Quick Examples&#x27;&gt;, False, &#x27;http://web2py.com/examples/default/examples&#x27;), (&lt;lazyT &#x27;FAQ&#x27;&gt;, False, &#x27;http://web2py.com/AlterEgo&#x27;), (&lt;lazyT &#x27;Videos&#x27;&gt;, False, &#x27;http://www.web2py.com/examples/default/videos/&#x27;), (&lt;lazyT &#x27;Free Applications&#x27;&gt;, False, &#x27;http://web2py.com/appliances&#x27;), (&lt;lazyT &#x27;Plugins&#x27;&gt;, False, &#x27;http://web2py.com/plugins&#x27;), (&lt;lazyT &#x27;Layouts&#x27;&gt;, False, &#x27;http://web2py.com/layouts&#x27;), (&lt;lazyT &#x27;Recipes&#x27;&gt;, False, &#x27;http://web2pyslices.com/&#x27;), (&lt;lazyT &#x27;Semantic&#x27;&gt;, False, &#x27;http://web2py.com/semantic&#x27;)]</div></td></tr></table></div></td></tr><tr><td><div><table><tr><td><div>Documentation</div></td></tr><tr><td><div>False</div></td></tr><tr><td><div>http://www.web2py.com/book</div></td></tr><tr><td><div>[(&lt;lazyT &#x27;Preface&#x27;&gt;, False, &#x27;http://www.web2py.com/book/default/chapter/00&#x27;), (&lt;lazyT &#x27;Introduction&#x27;&gt;, False, &#x27;http://www.web2py.com/book/default/chapter/01&#x27;), (&lt;lazyT &#x27;Python&#x27;&gt;, False, &#x27;http://www.web2py.com/book/default/chapter/02&#x27;), (&lt;lazyT &#x27;Overview&#x27;&gt;, False, &#x27;http://www.web2py.com/book/default/chapter/03&#x27;), (&lt;lazyT &#x27;The Core&#x27;&gt;, False, &#x27;http://www.web2py.com/book/default/chapter/04&#x27;), (&lt;lazyT &#x27;The Views&#x27;&gt;, False, &#x27;http://www.web2py.com/book/default/chapter/05&#x27;), (&lt;lazyT &#x27;Database&#x27;&gt;, False, &#x27;http://www.web2py.com/book/default/chapter/06&#x27;), (&lt;lazyT &#x27;Forms and Validators&#x27;&gt;, False, &#x27;http://www.web2py.com/book/default/chapter/07&#x27;), (&lt;lazyT &#x27;Email and SMS&#x27;&gt;, False, &#x27;http://www.web2py.com/book/default/chapter/08&#x27;), (&lt;lazyT &#x27;Access Control&#x27;&gt;, False, &#x27;http://www.web2py.com/book/default/chapter/09&#x27;), (&lt;lazyT &#x27;Services&#x27;&gt;, False, &#x27;http://www.web2py.com/book/default/chapter/10&#x27;), (&lt;lazyT &#x27;Ajax Recipes&#x27;&gt;, False, &#x27;http://www.web2py.com/book/default/chapter/11&#x27;), (&lt;lazyT &#x27;Components and Plugins&#x27;&gt;, False, &#x27;http://www.web2py.com/book/default/chapter/12&#x27;), (&lt;lazyT &#x27;Deployment Recipes&#x27;&gt;, False, &#x27;http://www.web2py.com/book/default/chapter/13&#x27;), (&lt;lazyT &#x27;Other Recipes&#x27;&gt;, False, &#x27;http://www.web2py.com/book/default/chapter/14&#x27;), (&lt;lazyT &#x27;Buy this book&#x27;&gt;, False, &#x27;http://stores.lulu.com/web2py&#x27;)]</div></td></tr></table></div></td></tr><tr><td><div><table><tr><td><div>Community</div></td></tr><tr><td><div>False</div></td></tr><tr><td><div>None</div></td></tr><tr><td><div>[(&lt;lazyT &#x27;Groups&#x27;&gt;, False, &#x27;http://www.web2py.com/examples/default/usergroups&#x27;), (&lt;lazyT &#x27;Twitter&#x27;&gt;, False, &#x27;http://twitter.com/web2py&#x27;), (&lt;lazyT &#x27;Live Chat&#x27;&gt;, False, &#x27;http://webchat.freenode.net/?channels=web2py&#x27;)]</div></td></tr></table></div></td></tr><tr><td><div><table><tr><td><div>Plugins</div></td></tr><tr><td><div>False</div></td></tr><tr><td><div>None</div></td></tr><tr><td><div>[(&#x27;plugin_wiki&#x27;, False, &#x27;http://web2py.com/examples/default/download&#x27;), (&lt;lazyT &#x27;Other Plugins&#x27;&gt;, False, &#x27;http://web2py.com/plugins&#x27;), (&lt;lazyT &#x27;Layout Plugins&#x27;&gt;, False, &#x27;http://web2py.com/layouts&#x27;)]</div></td></tr></table></div></td></tr></table></div></td></tr></table></div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">meta</td><td valign="top">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top">author</td><td valign="top">:</td><td><div>Evan Caldwell &lt;evancaldwell@yahoo.com&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">description</td><td valign="top">:</td><td><div>A time clock for SIRI employees</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">generator</td><td valign="top">:</td><td><div>Web2py Web Framework</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">keywords</td><td valign="top">:</td><td><div>SIRI, time, clock</div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">models_to_run</td><td valign="top">:</td><td><div><table><tr><td><div>^\\w+\\.py$</div></td></tr><tr><td><div>^timeclock/\\w+\\.py$</div></td></tr><tr><td><div>^timeclock/processinvoices/\\w+\\.py$</div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">postprocessing</td><td valign="top">:</td><td><div><table></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">session_cookie_expires</td><td valign="top">:</td><td><div>None</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">session_data_name</td><td valign="top">:</td><td><div>session_data_siri_admin</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">session_file</td><td valign="top">:</td><td><div>&lt;open file &#x27;/home/SIRI/web2py/applications/siri_admin/sessions/71.220.165.121-0c43fbcf-eb94-4df6-9fce-d9f05a645653&#x27;, mode &#x27;rb+&#x27; at 0x521d270&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">session_filename</td><td valign="top">:</td><td><div>/home/SIRI/web2py/applications/siri_admin/sessions/71.220.165.121-0c43fbcf-eb94-4df6-9fce-d9f05a645653</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">session_id</td><td valign="top">:</td><td><div>71.220.165.121-0c43fbcf-eb94-4df6-9fce-d9f05a645653</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">session_id_name</td><td valign="top">:</td><td><div>session_id_siri_admin</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">session_locked</td><td valign="top">:</td><td><div>True</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">session_new</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">session_storage_type</td><td valign="top">:</td><td><div>file</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">status</td><td valign="top">:</td><td><div>200</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">subtitle</td><td valign="top">:</td><td><div>customize me!</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">title</td><td valign="top">:</td><td><div>SIRI Admin</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">view</td><td valign="top">:</td><td><div>timeclock/processinvoices.html</div></td></tr></table></div>'
+tRp133
+sS'locals'
+p134
+(dp135
+g4
+S"'/home/SIRI/web2py/applications/siri_admin/controllers/timeclock.py'"
+p136
+sg6
+S"'@auth.requires_login()\\t\\r\\ndef employeedash():\\r\\n  ...response._vars=response._caller(processinvoices)\\n'"
+p137
+sssS'traceback'
+p138
+S'Traceback (most recent call last):\n  File "/home/SIRI/web2py/gluon/restricted.py", line 211, in restricted\n    ccode = compile2(code, layer)\n  File "/home/SIRI/web2py/gluon/restricted.py", line 194, in compile2\n    return compile(code.rstrip().replace(\'\\r\\n\', \'\\n\') + \'\\n\', layer, \'exec\')\n  File "/home/SIRI/web2py/applications/siri_admin/controllers/timeclock.py", line 83\n    return dict(form=form)\n   ^\nIndentationError: unexpected indent\n'
+p139
+s.

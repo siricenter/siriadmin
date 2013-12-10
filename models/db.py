@@ -39,11 +39,12 @@ response.generic_patterns = ['*'] if request.is_local else []
 ## (more options discussed in gluon/tools.py)
 #########################################################################
 
-import gdata
-import gspread
+# import gdata
+# import gdata.docs.service
+# import gspread
 import xlwt
 from xlwt import *
-from datetime import datetime, date, time
+from datetime import datetime, date, time, timedelta, tzinfo
 from gluon.tools import Auth, Crud, Service, PluginManager, prettydate
 auth = Auth(db)
 crud, service, plugins = Crud(db), Service(), PluginManager()
@@ -54,7 +55,7 @@ auth.define_tables(username=False, signature=False)
 ## configure email
 mail = auth.settings.mailer
 mail.settings.server = 'logging' or 'smtp.gmail.com:587'
-mail.settings.sender = 'evancaldwell@yahoo.com'
+mail.settings.sender = 'e.caldwell@sirinstitute.org'
 mail.settings.login = 'dawg3tt:mol090901!'
 
 ## configure auth policy
@@ -99,7 +100,9 @@ db.define_table('timeclock',
     Field('project','string', required=True, label='Project'),
     Field('work_date','date', required=True, label='Work Date'),
     Field('time_in','time', required=True, label='Time In'),
+    Field('time_in_ampm','string', required=True, label=''),
     Field('time_out','time', required=True, label='Time Out'),
+    Field('time_out_ampm','string', required=True, label=''),
     Field('description', 'text', required=True, label='Description'),
     Field('hours','double', label='hours'),
     Field('usr_id','reference auth_user', label='ID', readable=False)
@@ -107,12 +110,16 @@ db.define_table('timeclock',
 db.timeclock.project.requires = IS_IN_DB(db,'siri_projects.name')
 db.timeclock.work_date.requires = IS_DATE(format='%m/%d/%Y')
 db.timeclock.time_in.requires = IS_NOT_EMPTY()
+db.timeclock.time_in_ampm.requires = IS_IN_SET(['AM', 'PM'])
+db.timeclock.time_in_ampm.default = 'AM'
 db.timeclock.time_out.requires = IS_NOT_EMPTY()
+db.timeclock.time_out_ampm.requires = IS_IN_SET(['AM', 'PM'])
+db.timeclock.time_out_ampm.default = 'PM'
 db.timeclock.description.requires = IS_NOT_EMPTY()
 # db.timeclock.hours.readable = False
 db.timeclock.usr_id.writable = db.timeclock.usr_id.readable = False
 if auth.is_logged_in():
-    db.timeclock.usr_id.default=auth.user.id
+    db.timeclock.usr_id.default = auth.user.id
     
 db.define_table('siri_projects',
     Field('name', 'string', label='Name'),
