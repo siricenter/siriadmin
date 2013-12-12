@@ -1,10 +1,18 @@
 ########## Some Global Variables ##############
-PERIOD_START = datetime(2013, 10, 1) # TODO: implement tzinfo to make datetimes aware ############################
-PERIOD_END = datetime(2013, 12, 7)
-LAST_PERIOD_START = datetime(2013, 11, 10)
-LAST_PERIOD_END = datetime(2013, 11, 23)
+"""
+We need to find the current pay period
+"""
+FIRST_PERIOD_START = datetime(2013, 11, 10) # TODO: Get this set to the beginning of a pay period ############################
+PERIOD_START = FIRST_PERIOD_START           # TODO: implement tzinfo to make datetimes aware ############################
+PAY_PERIOD = timedelta(weeks = 2) - timedelta(microseconds=1)
+PERIOD_END = PERIOD_START + PAY_PERIOD
+NOW = datetime.now()
+while not (PERIOD_START <= NOW < PERIOD_END):
+    PERIOD_START += timedelta(weeks = 2)
+    PERIOD_END = PERIOD_START + PAY_PERIOD
 
-# TODO: increment periods ###############################################################################
+def index():
+    redirect(URL(employeedash))
 
 @auth.requires_login()
 def employeedash():
@@ -25,9 +33,10 @@ def employeedash():
 
     query = (db.timeclock.usr_id == session.auth.user.id)&(db.timeclock.work_date > PERIOD_START)&(db.timeclock.work_date < PERIOD_END)
     clockEntries = db(query).select(db.timeclock.ALL, orderby=~db.timeclock.work_date)
-    totalHours = 0
+    sum = db.timeclock.hours.sum()
+    totalHours = db(query).select(sum).first()[sum] or 0
 
-    return dict(form=form, clockEntries=clockEntries, totalHours=totalHours)
+    return locals() #dict(form=form, clockEntries=clockEntries, totalHours=totalHours)
 
 @auth.requires_signature()
 def ask():
