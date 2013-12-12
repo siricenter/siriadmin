@@ -1,10 +1,12 @@
 ########## Some Global Variables ##############
-PERIOD_START = datetime(2013, 10, 1) # TODO: implement tzinfo to make datetimes aware ############################
-PERIOD_END = datetime(2013, 12, 7)
+PERIOD_START = datetime(2013, 12, 1) # TODO: implement tzinfo to make datetimes aware ############################
+PERIOD_END = datetime(2013, 12, 31)
 LAST_PERIOD_START = datetime(2013, 11, 10)
 LAST_PERIOD_END = datetime(2013, 11, 23)
 
 # TODO: increment periods ###############################################################################
+def index():
+    redirect(URL(employeedash))
 
 @auth.requires_login()
 def employeedash():
@@ -25,9 +27,10 @@ def employeedash():
 
     query = (db.timeclock.usr_id == session.auth.user.id)&(db.timeclock.work_date > PERIOD_START)&(db.timeclock.work_date < PERIOD_END)
     clockEntries = db(query).select(db.timeclock.ALL, orderby=~db.timeclock.work_date)
-    totalHours = 0
+    sum = db.timeclock.hours.sum()
+    totalHours = db(query).select(sum).first()[sum]
 
-    return dict(form=form, clockEntries=clockEntries, totalHours=totalHours)
+    return locals() #dict(form=form, clockEntries=clockEntries, totalHours=totalHours)
 
 @auth.requires_signature()
 def ask():

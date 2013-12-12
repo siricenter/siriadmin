@@ -25,7 +25,6 @@
 						<td>{{=clockEntries[i].hours}}</td>
 						<td>{{=A(I(_class="icon-exclamation-sign"), _href="mailto:e.caldwell@sirinstitute.org?Subject=Sending%20Test%20Email%20&Body=Test%20Message%20")}}</td>
 					</tr>
-					{{totalHours += clockEntries[i].hours}}
 					{{pass}}
 				{{else:}}
 					{{for entry in clockEntries:}}
@@ -39,7 +38,6 @@
 							<a class="" data-target="#contact_modal" data-toggle="modal"><i class="icon-exclamation-sign"></i></a>
 						</td>
 					</tr>
-					{{totalHours += entry.hours}}
 					{{pass}}
 				{{pass}}
 			</tbody>
