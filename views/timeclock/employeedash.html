@@ -18,7 +18,7 @@
 				{{if len(clockEntries) >= 15:}}
 					{{for i in xrange(15):}}
 					<tr>
-						<td>{{=clockEntries[i].work_date}}</td>
+						<td>{{=clockEntries[i].work_date.strftime("%m/%d/%Y")}}</td>
 						<td>{{=clockEntries[i].time_in}}</td>
 						<td>{{=clockEntries[i].time_out}}</td>
 						<td>{{=clockEntries[i].description}}</td>
@@ -29,7 +29,7 @@
 				{{else:}}
 					{{for entry in clockEntries:}}
 					<tr>
-						<td>{{=entry.work_date}}</td>
+						<td>{{=entry.work_date.strftime("%m/%d/%Y")}}</td>
 						<td>{{=entry.time_in}}</td>
 						<td>{{=entry.time_out}}</td>
 						<td>{{=entry.description}}</td>
