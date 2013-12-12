@@ -1,0 +1,941 @@
+(dp1
+S'output'
+p2
+S"<type 'exceptions.TypeError'> can't compare datetime.datetime to datetime.date"
+p3
+sS'layer'
+p4
+S'/Users/adin/Work/SIRI/TimeClock/siri/applications/siriadmin/controllers/timeclock.py'
+p5
+sS'code'
+p6
+S'########## Some Global Variables ##############\r\n#PERIOD_START = datetime(2013, 11, 24) # TODO: implement tzinfo to make datetimes aware ############################\r\n#PERIOD_END = datetime(2013, 12, 7)\r\n#LAST_PERIOD_START = datetime(2013, 11, 10)\r\n#LAST_PERIOD_END = datetime(2013, 11, 23)\r\n###############################################\r\nFIRST_PERIOD_START = datetime(2013, 11, 10)\r\nPERIOD_START = FIRST_PERIOD_START\r\nPERIOD_END = PERIOD_START + timedelta(days = 13)\r\nwhile not (PERIOD_START <= date.today() < PERIOD_END):\r\n    PERIOD_START += timedelta(days = 14)\r\n    PERIOD_END = PERIOD_START + timedelta(days = 13)\r\n\r\n# TODO: increment periods ###############################################################################\r\ndef index():\r\n    redirect(URL(employeedash))\r\n\r\n@auth.requires_login()\r\ndef employeedash():\r\n    """\r\n    this will become the index page\r\n    TODO: create a clockin clockout feature ######################################################################\r\n    """\r\n    fields = [\'project\',\'work_date\',\'time_in\',\'time_in_ampm\',\'time_out\',\'time_out_ampm\',\'description\']\r\n    form = SQLFORM(db.timeclock, submit_button=\'Submit Hours\', fields=fields)\r\n    if form.process(onvalidation=calcHours).accepted:\r\n        response.flash = \'Thank you for submitting your time \' + str(form.vars.hours)\r\n    elif form.errors:\r\n        response.flash = \'There was an error on the form\'\r\n    else:\r\n        response.flash = \'Welcome to your dashboard \' + session.auth.user.first_name\r\n    response.title = session.auth.user.first_name + "\'s Dashboard"\r\n    response.subtitle = \'Current pay period is \' + PERIOD_START.strftime("%m/%d/%Y") + \' - \' + PERIOD_END.strftime("%m/%d/%Y")\r\n\r\n    query = (db.timeclock.usr_id == session.auth.user.id)&(db.timeclock.work_date > PERIOD_START)&(db.timeclock.work_date < PERIOD_END)\r\n    clockEntries = db(query).select(db.timeclock.ALL, orderby=~db.timeclock.work_date)\r\n    sum = db.timeclock.hours.sum()\r\n    totalHours = db(query).select(sum).first()[sum]\r\n\r\n    return locals() #dict(form=form, clockEntries=clockEntries, totalHours=totalHours)\r\n\r\n@auth.requires_signature()\r\ndef ask():\r\n    form=SQLFORM.factory(\r\n        Field(\'message\', \'text\', requires=IS_NOT_EMPTY()))\r\n    if form.process().accepted:\r\n        if mail.send(to=\'e.caldwell@sirinstitute.org\',\r\n                  subject=\'from %s\' % session.auth.user.email,\r\n                  message = form.vars.question):\r\n            response.flash = \'Thank you\'\r\n            response.js = "jQuery(\'#%s\').hide()" % request.cid\r\n        else:\r\n            form.errors.your_email = "Unable to send the email"\r\n    return form\r\n\r\n@auth.requires_login()\r\ndef addtime():\r\n    """\r\n    Allows a logged in user to add an entry for time worked\r\n    """\r\n    form = SQLFORM(db.timeclock)\r\n    if form.process().accepted:\r\n        response.flash = \'Thank you for submitting your time\'\r\n    elif form.errors:\r\n        response.flash = \'There was an error on the form\'\r\n    else:\r\n        response.flash = \'Welcome \' + session.auth.user.first_name + \' your id is: \' + str(session.auth.user.id)\r\n    response.title = \'New Entry\'\r\n    response.subtitle = \'please fill out the form below\'\r\n    hoursTest = type(db.timeclock.time_in)\r\n    return dict(form=form, hoursTest=hoursTest)\r\n\r\n@auth.requires_login()\r\ndef displaytime():\r\n    """\r\n    Shows the entries for the user that is logged in\r\n    TODO: fix the modal comment/question submit error  ################################\r\n    """\r\n    payPeriods = 0\t\r\n    query = db.timeclock.usr_id == session.auth.user.id\r\n    grid = SQLFORM.grid(query, deletable=False, editable=False, create=False, orderby=~db.timeclock.work_date)\r\n\r\n    return dict(grid=grid)\r\n\r\n@auth.requires_login()\r\ndef bulletin_board():\r\n    """\r\n    Shows the bulletin board and the form to submit a new comment\r\n    Includes pagination.\r\n    """\r\n    if len(request.args):\r\n        page=int(request.args[0])\r\n    else:\r\n        page = 0\r\n    items_per_page=5\r\n    limitby=(page * items_per_page, (page + 1) * items_per_page + 1)\r\n    comments=db(db.bulletin_post).select(limitby=limitby, orderby=~db.bulletin_post.created_on)\r\n\r\n    form=SQLFORM(db.bulletin_post).process(next=URL(args=[0]))\r\n    return locals()\r\n\r\n@auth.requires_login()\r\ndef processinvoices():\r\n    """\r\n    A view to process and export invoices or various clients\r\n    TODO: make it variable per client and per period via inputs of some type #########################################\r\n          have it call the gspread function\r\n          process a log of some sort\r\n          display a processing icon and confirmation message\r\n    """\r\n    \r\n    form=FORM(\'Invoice Details:\',\r\n              INPUT(_name=\'start\', _class=\'date\', requires=IS_NOT_EMPTY()),\r\n              INPUT(_name=\'end\', _class=\'date\', requires=IS_NOT_EMPTY()),\r\n              INPUT(_name=\'project\', requires=IS_NOT_EMPTY()),\r\n              INPUT(_type=\'submit\'))\r\n\r\n    if form.accepts(request,session):\r\n        response.flash = \'form accepted\'\r\n    elif form.errors:\r\n        response.flash = \'form has errors\'\r\n    else:\r\n        response.flash = \'please fill out the form\'\r\n    # Get the vars from the form to process the invoices\r\n    start = form.vars.start\r\n    end = form.vars.end\r\n    project = form.vars.project\r\n    # Initialize various variables to use in the function\r\n    clockSet = None\r\n    empIdList = []\r\n    empInfo = []\r\n    empList = []\r\n    totalHours = 0\r\n    # Initialize a Google Docs client\r\n    gc = gspread.login(\'dawg3tt@gmail.com\', \'mol090901!\')\r\n    # Check to see if the form has been submitted\r\n    # TODO: tie this to the form submission, maybe using onvalidation ###################################################\r\n    if start is not None:\r\n        response.flash = "Processing Invoices for " + project + ", period: " + start + " - " + end\r\n        # Convert form variables to date objects\r\n        start = datetime.strptime(start, "%m/%d/%Y")\r\n        end = datetime.strptime(end, "%m/%d/%Y")\r\n        # Query and select records from the database that match the form variables\r\n        query = (db.timeclock.work_date >= start) & (db.timeclock.work_date <= end) & (db.timeclock.project == project)\r\n        clockEntries = db(query).select(db.timeclock.ALL, orderby=~db.timeclock.work_date)\r\n        # Get a list of unique employee ids from the time submissions\r\n        for item in clockEntries:\r\n            empIdList.append(item.usr_id)\r\n        empIdList = set(empIdList)\r\n        # Build a list of Employee object instances\r\n        for id in empIdList:\r\n            empInfo = db(db.auth_user.id == id).select().first()\r\n            # Instantiate an Employee object, initialize an empty array for timeclock entries and a variable to hold the total hours\r\n            emp = Employee(id, empInfo.first_name, empInfo.last_name, empInfo.email)\r\n            emp.entries = []\r\n            emp.totalHours = 0\r\n            emp.project = project\r\n            # Add the timeclock entries for this employee to the empty array and calculate the total hours\r\n            for entry in clockEntries:\r\n                if entry.usr_id == id:\r\n                    emp.entries.append(entry)\r\n                    emp.totalHours += entry.hours\r\n            # Add the new Employee object to the Employee object list\r\n            empList.append(emp)\r\n\r\n        # For each id create an invoice and format it\r\n        for employee in empList:\r\n            # call functions to create and format invoices\r\n            # TODO: find a way to create new invoices programmatically ##################################################\r\n            createInvoices(employee, gc, start, end)\r\n            # formatIncoices()\r\n    \r\n        clockEntries = []\r\n        entryRange = []\r\n\r\n\r\n    return dict(form=form, clockEntries=clockEntries, empList=empList, empInfo=empInfo)\r\n\r\ndef createInvoices(employee, gc, start, end):\r\n    """\r\n    A function to create a Google doc with an invoice or each employee\r\n    """\r\n    response.flash = "Creating Invoices"\r\n    ss = gc.open("web2py_tester")\r\n    wks = ss.sheet1\r\n    newks = ss.add_worksheet(title=employee.firstName + " " + employee.lastName, rows="70", cols="5")\r\n    headerRange = newks.range(\'A1:E15\')\r\n    entryRange = newks.range(\'A16:E\' + str(len(employee.entries) + 15))\r\n    for cell in headerRange:\r\n        cell.value = \'\'\r\n    headerRange[0].value = "Invoice"\r\n    headerRange[10].value = "From:"\r\n    headerRange[11].value = employee.firstName + " " + employee.lastName\r\n    headerRange[13].value = "Period"\r\n    headerRange[18].value = "From:"\r\n    headerRange[19].value = "To:"\r\n    headerRange[23].value = start\r\n    headerRange[24].value = end\r\n    headerRange[40].value = "To:"\r\n    headerRange[41].value = "Deseret Digital Media"\r\n    headerRange[44].value = "Hours Total"\r\n    headerRange[46].value = "55 North 300 West Ste 500"\r\n    headerRange[49].value = employee.totalHours\r\n    headerRange[51].value = "Salt Lake City, UT 84101"\r\n    headerRange[54].value = "Total"\r\n    headerRange[56].value = "801-333-7400"\r\n    headerRange[59].value = employee.totalHours * 10\r\n    headerRange[70].value = "Date"\r\n    headerRange[71].value = "Description"\r\n    headerRange[72].value = "Hours"\r\n    headerRange[73].value = "Rate"\r\n    headerRange[74].value = "Subtotal"\r\n\r\n    outputEntries = convertGdOutput(employee.entries)\r\n    i = 0\r\n    for cell in entryRange:\r\n        cell.value = outputEntries[i]\r\n        i += 1\r\n\r\n    newks.update_cells(headerRange)\r\n    newks.update_cells(entryRange)\r\n\r\ndef convertGdOutput(entries):\r\n    # convert a set of time entries from the database to a valid Google Docs format\r\n    outputEntries = []\r\n    for entry in entries:\r\n        outputEntries.extend([entry.work_date, entry.description, entry.hours, 10, float(entry.hours) * 10])\r\n    return outputEntries\r\n\r\n\r\ndef calcHours(form):\r\n    timeIn = form.vars.time_in\r\n    timeOut = form.vars.time_out\r\n    timeInAmPm = form.vars.time_in_ampm\r\n    timeOutAmPm = form.vars.time_out_ampm\r\n    timeInHour = int(timeIn[0:2])\r\n    timeInMin = int(timeIn[3:5])\r\n    timeOutHour = int(timeOut[0:2])\r\n    timeOutMin = int(timeOut[3:5])\r\n    if timeInAmPm == \'PM\':\r\n        timeInHour += 12\r\n    if timeOutAmPm == \'PM\':\r\n        timeOutHour += 12\r\n    hourDiff = timeOutHour - timeInHour\r\n    minDiff = (timeOutMin - timeInMin)/60.0\r\n    form.vars.hours = "%.2f" % (hourDiff + minDiff)\r\n\r\ndef gdatatest():\r\n    """\r\n    testing integration with Google\r\n    """\r\n    gemail = \'dawg3tt@gmail.com\'\r\n    gpwd = \'mol090901!\'\r\n\r\n    ############ get docs list example #################################################\r\n    # Create a client class which will make HTTP requests with Google Docs server.\r\n    gdataClient = gdata.docs.service.DocsService()\r\n    # Authenticate using your Google Docs email address and password.\r\n    gdataClient.email = gemail\r\n    gdataClient.password = gpwd\r\n    gdataClient.source = \'SIRI Admin\'\r\n    gdataClient.ProgrammaticLogin()\r\n    # Query the server for an Atom feed containing a list of your documents.\r\n    docsFeed = gdataClient.GetDocumentListFeed()\r\n    ####################################################################################\r\n    \r\n    return dict(docsFeed=docsFeed)\r\n\r\ndef gspreadtest():\r\n    clockEntries = db(db.timeclock.project == \'DDM\').select(db.timeclock.ALL, orderby=~db.timeclock.usr_id)\r\n\r\n    gc = gspread.login(\'dawg3tt@gmail.com\', \'mol090901!\')\r\n    ss = gc.open("web2py_tester")\r\n    wks = ss.sheet1\r\n    timeList = wks.range(\'A16:E30\')\r\n    for cell in timeList:\r\n        cell.value = \'\'\r\n    # wks.update_cells(timeList)\r\n    newks = ss.add_worksheet(title=\'clockEntries[0].usr_id\', rows="70", cols="5")\r\n    newks.update_cell(1,1, \'Invoice\')\r\n    copyRange = wks.range(\'A1:F30\')\r\n    headerRange = newks.range(\'A1:F30\')\r\n    # for cell in headerRange:\r\n    #     cell.value = copyRange.value\r\n    copyList = wks.get_all_values()\r\n    newks.update_cells(copyRange)\r\n\r\n    update = False\r\n    if update:\r\n        rate = 10\r\n        idx = 16\r\n        for entry in clockEntries:\r\n            wks.update_cell(idx, 1, entry.work_date)\r\n            wks.update_cell(idx, 2, entry.description)\r\n            wks.update_cell(idx, 3, entry.hours)\r\n            wks.update_cell(idx, 4, rate) #TODO: this should be replaced by a query for rate added by admin ################\r\n            wks.update_cell(idx, 5, rate*entry.hours)\r\n            idx += 1\r\n\r\n    return dict(\r\n        timeList=timeList, \r\n        clockEntries=clockEntries, \r\n        wks=wks,\r\n        newks=newks,\r\n        copyRange=copyRange, \r\n        copyList=copyList\r\n        )\r\n\r\n# def copyCells(values, newks):\r\n#     for row in values:\r\n#         for cell in rows:\r\n\nresponse._vars=response._caller(employeedash)\n'
+p7
+sS'snapshot'
+p8
+(dp9
+S'exception'
+p10
+(dp11
+S'__hash__'
+p12
+S"<method-wrapper '__hash__' of exceptions.TypeError object>"
+p13
+sS'__setattr__'
+p14
+S"<method-wrapper '__setattr__' of exceptions.TypeError object>"
+p15
+sS'__reduce_ex__'
+p16
+S'<built-in method __reduce_ex__ of exceptions.TypeError object>'
+p17
+sS'__getslice__'
+p18
+S"<method-wrapper '__getslice__' of exceptions.TypeError object>"
+p19
+sS'__getitem__'
+p20
+S"<method-wrapper '__getitem__' of exceptions.TypeError object>"
+p21
+sS'__setstate__'
+p22
+S'<built-in method __setstate__ of exceptions.TypeError object>'
+p23
+sS'args'
+p24
+S'("can\'t compare datetime.datetime to datetime.date",)'
+p25
+sS'__reduce__'
+p26
+S'<built-in method __reduce__ of exceptions.TypeError object>'
+p27
+sS'__str__'
+p28
+S"<method-wrapper '__str__' of exceptions.TypeError object>"
+p29
+sS'__format__'
+p30
+S'<built-in method __format__ of exceptions.TypeError object>'
+p31
+sS'__getattribute__'
+p32
+S"<method-wrapper '__getattribute__' of exceptions.TypeError object>"
+p33
+sS'__class__'
+p34
+S"<type 'exceptions.TypeError'>"
+p35
+sS'__unicode__'
+p36
+S'<built-in method __unicode__ of exceptions.TypeError object>'
+p37
+sS'__delattr__'
+p38
+S"<method-wrapper '__delattr__' of exceptions.TypeError object>"
+p39
+sS'__subclasshook__'
+p40
+S'<built-in method __subclasshook__ of type object>'
+p41
+sS'__repr__'
+p42
+S"<method-wrapper '__repr__' of exceptions.TypeError object>"
+p43
+sS'__dict__'
+p44
+S'{}'
+p45
+sS'__sizeof__'
+p46
+S'<built-in method __sizeof__ of exceptions.TypeError object>'
+p47
+sS'__doc__'
+p48
+S"'Inappropriate argument type.'"
+p49
+sS'__init__'
+p50
+S"<method-wrapper '__init__' of exceptions.TypeError object>"
+p51
+sS'__new__'
+p52
+S'<built-in method __new__ of type object>'
+p53
+ssS'evalue'
+p54
+S"can't compare datetime.datetime to datetime.date"
+p55
+sS'request'
+p56
+cgluon.html
+XML_unpickle
+p57
+(S's\xe9m\x00\x00<div><table><tr><td style="font-weight:bold;vertical-align:top">ajax</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">application</td><td valign="top">:</td><td><div>siriadmin</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">args</td><td valign="top">:</td><td><div><table></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">body</td><td valign="top">:</td><td><div>&lt;cStringIO.StringO object at 0x108546f48&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">cid</td><td valign="top">:</td><td><div>None</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">client</td><td valign="top">:</td><td><div>127.0.0.1</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">controller</td><td valign="top">:</td><td><div>timeclock</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">cookies</td><td valign="top">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top">session_id_admin</td><td valign="top">:</td><td><div>127.0.0.1-60d2fd60-b609-4ccd-870a-3b25d9b583a3<table><tr><td style="font-weight:bold;vertical-align:top">comment</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">domain</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">expires</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">httponly</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">max-age</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">path</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">secure</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">version</td><td valign="top">:</td><td><div></div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">session_id_contacts</td><td valign="top">:</td><td><div>127.0.0.1-218eeed3-dc69-4177-b671-ae707b4572c7<table><tr><td style="font-weight:bold;vertical-align:top">comment</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">domain</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">expires</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">httponly</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">max-age</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">path</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">secure</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">version</td><td valign="top">:</td><td><div></div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">session_id_crm</td><td valign="top">:</td><td><div>127.0.0.1-47a5904e-735e-4bd6-88aa-b9ce8f637a1d<table><tr><td style="font-weight:bold;vertical-align:top">comment</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">domain</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">expires</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">httponly</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">max-age</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">path</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">secure</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">version</td><td valign="top">:</td><td><div></div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">session_id_siri</td><td valign="top">:</td><td><div>127.0.0.1-273260ba-5ac4-4075-8be3-d8ef5f93ab81<table><tr><td style="font-weight:bold;vertical-align:top">comment</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">domain</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">expires</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">httponly</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">max-age</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">path</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">secure</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">version</td><td valign="top">:</td><td><div></div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">session_id_siri_time_clock</td><td valign="top">:</td><td><div>127.0.0.1-64a2d03c-9846-44ce-acb4-33b1bdddf55e<table><tr><td style="font-weight:bold;vertical-align:top">comment</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">domain</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">expires</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">httponly</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">max-age</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">path</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">secure</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">version</td><td valign="top">:</td><td><div></div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">session_id_siriadmin</td><td valign="top">:</td><td><div>127.0.0.1-1eb9339d-d71d-4001-8088-3dd16cb84de5<table><tr><td style="font-weight:bold;vertical-align:top">comment</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">domain</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">expires</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">httponly</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">max-age</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">path</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">secure</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">version</td><td valign="top">:</td><td><div></div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">session_id_test</td><td valign="top">:</td><td><div>127.0.0.1-ed6a37ab-a56a-4d58-82ae-c5d94d16edaa<table><tr><td style="font-weight:bold;vertical-align:top">comment</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">domain</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">expires</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">httponly</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">max-age</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">path</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">secure</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">version</td><td valign="top">:</td><td><div></div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">session_id_welcome</td><td valign="top">:</td><td><div>127.0.0.1-729095d2-7f9b-4015-8be8-7513adaa672f<table><tr><td style="font-weight:bold;vertical-align:top">comment</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">domain</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">expires</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">httponly</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">max-age</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">path</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">secure</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">version</td><td valign="top">:</td><td><div></div></td></tr></table></div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">env</td><td valign="top">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top">app_folders</td><td valign="top">:</td><td><div>set([&#x27;/Users/adin/Work/SIRI/TimeClock/siri/applications/welcome/&#x27;, &#x27;/Users/adin/Work/SIRI/TimeClock/siri/applications/admin/&#x27;, &#x27;/Users/adin/Work/SIRI/TimeClock/siri/applications/siriadmin/&#x27;])</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">applications_parent</td><td valign="top">:</td><td><div>/Users/adin/Work/SIRI/TimeClock/siri</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">cmd_args</td><td valign="top">:</td><td><div><table></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">cmd_options</td><td valign="top">:</td><td><div>&lt;Values at 0x1089dbc20: {&#x27;verbose&#x27;: False, &#x27;ip&#x27;: &#x27;127.0.0.1&#x27;, &#x27;with_scheduler&#x27;: False, &#x27;ips&#x27;: [&#x27;fe80::6aa8:6dff:fe1b:d9f2%en1&#x27;, &#x27;172.16.98.153&#x27;], &#x27;shutdown_timeout&#x27;: 5, &#x27;taskbar&#x27;: False, &#x27;with_coverage&#x27;: False, &#x27;port&#x27;: 8000, &#x27;maxthreads&#x27;: None, &#x27;softcron&#x27;: False, &#x27;server_name&#x27;: &#x27;Aphro.local&#x27;, &#x27;bpython&#x27;: False, &#x27;nogui&#x27;: False, &#x27;pid_filename&#x27;: &#x27;httpserver.pid&#x27;, &#x27;extcron&#x27;: False, &#x27;runcron&#x27;: False, &#x27;run_system_tests&#x27;: False, &#x27;test&#x27;: None, &#x27;folder&#x27;: &#x27;/Users/adin/Work/SIRI/TimeClock/siri&#x27;, &#x27;config&#x27;: &#x27;&#x27;, &#x27;minthreads&#x27;: None, &#x27;winservice&#x27;: &#x27;&#x27;, &#x27;shell&#x27;: None, &#x27;run&#x27;: &#x27;&#x27;, &#x27;log_filename&#x27;: &#x27;httpserver.log&#x27;, &#x27;debuglevel&#x27;: 30, &#x27;args&#x27;: [&#x27;&#x27;], &#x27;socket_timeout&#x27;: 5, &#x27;ssl_ca_certificate&#x27;: None, &#x27;scheduler&#x27;: None, &#x27;profiler_filename&#x27;: None, &#x27;ssl_private_key&#x27;: &#x27;&#x27;, &#x27;scheduler_groups&#x27;: None, &#x27;password&#x27;: &#x27;&lt;ask&gt;&#x27;, &#x27;request_queue_size&#x27;: 5, &#x27;ssl_certificate&#x27;: &#x27;&#x27;, &#x27;cronjob&#x27;: False, &#x27;numthreads&#x27;: None, &#x27;quiet&#x27;: False, &#x27;interfaces&#x27;: None, &#x27;import_models&#x27;: False, &#x27;timeout&#x27;: 10, &#x27;plain&#x27;: False, &#x27;nobanner&#x27;: False}&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">db_sessions</td><td valign="top">:</td><td><div>set([])</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">debugging</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">gluon_parent</td><td valign="top">:</td><td><div>/Users/adin/Work/SIRI/TimeClock/siri</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">http_accept</td><td valign="top">:</td><td><div>text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">http_accept_encoding</td><td valign="top">:</td><td><div>gzip, deflate</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">http_accept_language</td><td valign="top">:</td><td><div>en-US,en;q=0.5</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">http_cache_control</td><td valign="top">:</td><td><div>max-age=0</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">http_connection</td><td valign="top">:</td><td><div>keep-alive</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">http_cookie</td><td valign="top">:</td><td><div>session_id_welcome=127.0.0.1-729095d2-7f9b-4015-8be8-7513adaa672f; session_id_admin=127.0.0.1-60d2fd60-b609-4ccd-870a-3b25d9b583a3; session_id_crm=127.0.0.1-47a5904e-735e-4bd6-88aa-b9ce8f637a1d; session_id_contacts=127.0.0.1-218eeed3-dc69-4177-b671-ae707b4572c7; session_id_siri=127.0.0.1-273260ba-5ac4-4075-8be3-d8ef5f93ab81; session_id_test=127.0.0.1-ed6a37ab-a56a-4d58-82ae-c5d94d16edaa; session_id_siri_time_clock=127.0.0.1-64a2d03c-9846-44ce-acb4-33b1bdddf55e; session_id_siriadmin=127.0.0.1-1eb9339d-d71d-4001-8088-3dd16cb84de5</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">http_dnt</td><td valign="top">:</td><td><div>1</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">http_host</td><td valign="top">:</td><td><div>127.0.0.1:8000</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">http_user_agent</td><td valign="top">:</td><td><div>Mozilla/5.0 (Macintosh; Intel Mac OS X 10.9; rv:25.0) Gecko/20100101 Firefox/25.0</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">is_jython</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">is_pypy</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">local_hosts</td><td valign="top">:</td><td><div><table><tr><td><div>172.16.98.153</div></td></tr><tr><td><div>Aphro.local</div></td></tr><tr><td><div>::ffff:127.0.0.1</div></td></tr><tr><td><div>::1</div></td></tr><tr><td><div>fe80::6aa8:6dff:fe1b:d9f2%en1</div></td></tr><tr><td><div>127.0.0.1</div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">path_info</td><td valign="top">:</td><td><div>/siriadmin/timeclock/employeedash</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">query_string</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">remote_addr</td><td valign="top">:</td><td><div>127.0.0.1</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">remote_port</td><td valign="top">:</td><td><div>63694</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">request_method</td><td valign="top">:</td><td><div>GET</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">request_uri</td><td valign="top">:</td><td><div>/siriadmin/timeclock/employeedash</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">script_name</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">server_name</td><td valign="top">:</td><td><div>Aphro.local</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">server_port</td><td valign="top">:</td><td><div>8000</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">server_protocol</td><td valign="top">:</td><td><div>HTTP/1.1</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">server_software</td><td valign="top">:</td><td><div>Rocket 1.2.6</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">web2py_path</td><td valign="top">:</td><td><div>/Users/adin/Work/SIRI/TimeClock/siri</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">web2py_version</td><td valign="top">:</td><td><div>2.5.1-stable+timestamp.2013.06.06.15.39.19</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi_errors</td><td valign="top">:</td><td><div>&lt;open file &#x27;&lt;stderr&gt;&#x27;, mode &#x27;w&#x27; at 0x107bcf1e0&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi_file_wrapper</td><td valign="top">:</td><td><div>&lt;class wsgiref.util.FileWrapper at 0x10897b390&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi_input</td><td valign="top">:</td><td><div>&lt;socket._fileobject object at 0x10deda550&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi_multiprocess</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi_multithread</td><td valign="top">:</td><td><div>True</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi_run_once</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi_url_scheme</td><td valign="top">:</td><td><div>http</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi_version</td><td valign="top">:</td><td><div><table><tr><td><div>1</div></td></tr><tr><td><div>0</div></td></tr></table></div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">extension</td><td valign="top">:</td><td><div>html</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">folder</td><td valign="top">:</td><td><div>/Users/adin/Work/SIRI/TimeClock/siri/applications/siriadmin/</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">function</td><td valign="top">:</td><td><div>employeedash</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">get_vars</td><td valign="top">:</td><td><div><table></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">global_settings</td><td valign="top">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top">app_folders</td><td valign="top">:</td><td><div>set([&#x27;/Users/adin/Work/SIRI/TimeClock/siri/applications/welcome/&#x27;, &#x27;/Users/adin/Work/SIRI/TimeClock/siri/applications/admin/&#x27;, &#x27;/Users/adin/Work/SIRI/TimeClock/siri/applications/siriadmin/&#x27;])</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">applications_parent</td><td valign="top">:</td><td><div>/Users/adin/Work/SIRI/TimeClock/siri</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">cmd_args</td><td valign="top">:</td><td><div><table></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">cmd_options</td><td valign="top">:</td><td><div>&lt;Values at 0x1089dbc20: {&#x27;verbose&#x27;: False, &#x27;ip&#x27;: &#x27;127.0.0.1&#x27;, &#x27;with_scheduler&#x27;: False, &#x27;ips&#x27;: [&#x27;fe80::6aa8:6dff:fe1b:d9f2%en1&#x27;, &#x27;172.16.98.153&#x27;], &#x27;shutdown_timeout&#x27;: 5, &#x27;taskbar&#x27;: False, &#x27;with_coverage&#x27;: False, &#x27;port&#x27;: 8000, &#x27;maxthreads&#x27;: None, &#x27;softcron&#x27;: False, &#x27;server_name&#x27;: &#x27;Aphro.local&#x27;, &#x27;bpython&#x27;: False, &#x27;nogui&#x27;: False, &#x27;pid_filename&#x27;: &#x27;httpserver.pid&#x27;, &#x27;extcron&#x27;: False, &#x27;runcron&#x27;: False, &#x27;run_system_tests&#x27;: False, &#x27;test&#x27;: None, &#x27;folder&#x27;: &#x27;/Users/adin/Work/SIRI/TimeClock/siri&#x27;, &#x27;config&#x27;: &#x27;&#x27;, &#x27;minthreads&#x27;: None, &#x27;winservice&#x27;: &#x27;&#x27;, &#x27;shell&#x27;: None, &#x27;run&#x27;: &#x27;&#x27;, &#x27;log_filename&#x27;: &#x27;httpserver.log&#x27;, &#x27;debuglevel&#x27;: 30, &#x27;args&#x27;: [&#x27;&#x27;], &#x27;socket_timeout&#x27;: 5, &#x27;ssl_ca_certificate&#x27;: None, &#x27;scheduler&#x27;: None, &#x27;profiler_filename&#x27;: None, &#x27;ssl_private_key&#x27;: &#x27;&#x27;, &#x27;scheduler_groups&#x27;: None, &#x27;password&#x27;: &#x27;&lt;ask&gt;&#x27;, &#x27;request_queue_size&#x27;: 5, &#x27;ssl_certificate&#x27;: &#x27;&#x27;, &#x27;cronjob&#x27;: False, &#x27;numthreads&#x27;: None, &#x27;quiet&#x27;: False, &#x27;interfaces&#x27;: None, &#x27;import_models&#x27;: False, &#x27;timeout&#x27;: 10, &#x27;plain&#x27;: False, &#x27;nobanner&#x27;: False}&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">db_sessions</td><td valign="top">:</td><td><div>set([])</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">debugging</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">gluon_parent</td><td valign="top">:</td><td><div>/Users/adin/Work/SIRI/TimeClock/siri</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">is_jython</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">is_pypy</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">local_hosts</td><td valign="top">:</td><td><div><table><tr><td><div>172.16.98.153</div></td></tr><tr><td><div>Aphro.local</div></td></tr><tr><td><div>::ffff:127.0.0.1</div></td></tr><tr><td><div>::1</div></td></tr><tr><td><div>fe80::6aa8:6dff:fe1b:d9f2%en1</div></td></tr><tr><td><div>127.0.0.1</div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">web2py_version</td><td valign="top">:</td><td><div>2.5.1-stable+timestamp.2013.06.06.15.39.19</div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">is_https</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">is_local</td><td valign="top">:</td><td><div>True</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">is_restful</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">now</td><td valign="top">:</td><td><div>datetime.datetime(2013, 12, 12, 12, 26, 35, 92816)</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">post_vars</td><td valign="top">:</td><td><div><table></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">raw_args</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">raw_extension</td><td valign="top">:</td><td><div>None</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">url</td><td valign="top">:</td><td><div>/siriadmin/timeclock/employeedash</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">utcnow</td><td valign="top">:</td><td><div>datetime.datetime(2013, 12, 12, 19, 26, 35, 92830)</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">uuid</td><td valign="top">:</td><td><div>siriadmin/127.0.0.1.2013-12-12.12-26-35.e9db6c2f-a94a-4d69-a1b7-d300001e0949</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">vars</td><td valign="top">:</td><td><div><table></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi</td><td valign="top">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top">environ</td><td valign="top">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top">HTTP_ACCEPT</td><td valign="top">:</td><td><div>text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">HTTP_ACCEPT_ENCODING</td><td valign="top">:</td><td><div>gzip, deflate</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">HTTP_ACCEPT_LANGUAGE</td><td valign="top">:</td><td><div>en-US,en;q=0.5</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">HTTP_CACHE_CONTROL</td><td valign="top">:</td><td><div>max-age=0</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">HTTP_CONNECTION</td><td valign="top">:</td><td><div>keep-alive</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">HTTP_COOKIE</td><td valign="top">:</td><td><div>session_id_welcome=127.0.0.1-729095d2-7f9b-4015-8be8-7513adaa672f; session_id_admin=127.0.0.1-60d2fd60-b609-4ccd-870a-3b25d9b583a3; session_id_crm=127.0.0.1-47a5904e-735e-4bd6-88aa-b9ce8f637a1d; session_id_contacts=127.0.0.1-218eeed3-dc69-4177-b671-ae707b4572c7; session_id_siri=127.0.0.1-273260ba-5ac4-4075-8be3-d8ef5f93ab81; session_id_test=127.0.0.1-ed6a37ab-a56a-4d58-82ae-c5d94d16edaa; session_id_siri_time_clock=127.0.0.1-64a2d03c-9846-44ce-acb4-33b1bdddf55e; session_id_siriadmin=127.0.0.1-1eb9339d-d71d-4001-8088-3dd16cb84de5</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">HTTP_DNT</td><td valign="top">:</td><td><div>1</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">HTTP_HOST</td><td valign="top">:</td><td><div>127.0.0.1:8000</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">HTTP_USER_AGENT</td><td valign="top">:</td><td><div>Mozilla/5.0 (Macintosh; Intel Mac OS X 10.9; rv:25.0) Gecko/20100101 Firefox/25.0</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">PATH_INFO</td><td valign="top">:</td><td><div>/siriadmin/timeclock/employeedash</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">QUERY_STRING</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">REMOTE_ADDR</td><td valign="top">:</td><td><div>127.0.0.1</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">REMOTE_PORT</td><td valign="top">:</td><td><div>63694</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">REQUEST_METHOD</td><td valign="top">:</td><td><div>GET</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">REQUEST_URI</td><td valign="top">:</td><td><div>/siriadmin/timeclock/employeedash</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">SCRIPT_NAME</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">SERVER_NAME</td><td valign="top">:</td><td><div>Aphro.local</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">SERVER_PORT</td><td valign="top">:</td><td><div>8000</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">SERVER_PROTOCOL</td><td valign="top">:</td><td><div>HTTP/1.1</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">SERVER_SOFTWARE</td><td valign="top">:</td><td><div>Rocket 1.2.6</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi.errors</td><td valign="top">:</td><td><div>&lt;open file &#x27;&lt;stderr&gt;&#x27;, mode &#x27;w&#x27; at 0x107bcf1e0&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi.file_wrapper</td><td valign="top">:</td><td><div>&lt;class wsgiref.util.FileWrapper at 0x10897b390&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi.input</td><td valign="top">:</td><td><div>&lt;cStringIO.StringO object at 0x108546f48&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi.multiprocess</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi.multithread</td><td valign="top">:</td><td><div>True</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi.run_once</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi.url_scheme</td><td valign="top">:</td><td><div>http</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi.version</td><td valign="top">:</td><td><div>1</div></td></tr></table></div></td></tr></table></div></td></tr></table></div>'
+tRp58
+sS'frames'
+p59
+(lp60
+(dp61
+S'file'
+p62
+S'/Users/adin/Work/SIRI/TimeClock/siri/gluon/restricted.py'
+p63
+sS'dump'
+p64
+(dp65
+S'environment'
+p66
+S"{'A': <class 'gluon.html.A'>, 'ANTLRException': <class 'xlwt.antlr.ANTLRException'>, 'ANY_OF': <class 'gluon.validators.ANY_OF'>, 'Alignment': <class 'xlwt.Formatting.Alignment'>, 'Auth': <class 'gluon.tools.Auth'>, 'B': <class 'gluon.html.B'>, 'BEAUTIFY': <class 'gluon.html.BEAUTIFY'>, 'BIFFRecords': <module 'xlwt.BIFFRecords' from '/Library/Python/2.7/site-packages/xlwt/BIFFRecords.pyc'>, 'BODY': <class 'gluon.html.BODY'>, 'BR': <class 'gluon.html.BR'>, ...}"
+p67
+sS'ccode'
+p68
+S'<code object <module> at 0x1115a0db0, file "/Use...ions/siriadmin/controllers/timeclock.py", line 7>'
+p69
+ssS'lnum'
+p70
+I212
+sS'lines'
+p71
+(dp72
+I207
+S'    try:'
+p73
+sI208
+S'        if isinstance(code, types.CodeType):'
+p74
+sI209
+S'            ccode = code'
+p75
+sI210
+S'        else:'
+p76
+sI211
+S'            ccode = compile2(code, layer)'
+p77
+sI212
+S'        exec ccode in environment'
+p78
+sI213
+S'    except HTTP:'
+p79
+sI214
+S'        raise'
+p80
+sI215
+S'    except RestrictedError:'
+p81
+sI216
+S'        # do not encapsulate (obfuscate) the original RestrictedError'
+p82
+ssS'call'
+p83
+S"(code='########## Some Global Variables ##############\\r...\\r\\n\\nresponse._vars=response._caller(employeedash)\\n', environment={'A': <class 'gluon.html.A'>, 'ANTLRException': <class 'xlwt.antlr.ANTLRException'>, 'ANY_OF': <class 'gluon.validators.ANY_OF'>, 'Alignment': <class 'xlwt.Formatting.Alignment'>, 'Auth': <class 'gluon.tools.Auth'>, 'B': <class 'gluon.html.B'>, 'BEAUTIFY': <class 'gluon.html.BEAUTIFY'>, 'BIFFRecords': <module 'xlwt.BIFFRecords' from '/Library/Python/2.7/site-packages/xlwt/BIFFRecords.pyc'>, 'BODY': <class 'gluon.html.BODY'>, 'BR': <class 'gluon.html.BR'>, ...}, layer='/Users/adin/Work/SIRI/TimeClock/siri/applications/siriadmin/controllers/timeclock.py')"
+p84
+sS'func'
+p85
+S'restricted'
+p86
+sa(dp87
+g62
+S'/Users/adin/Work/SIRI/TimeClock/siri/applications/siriadmin/controllers/timeclock.py'
+p88
+sg64
+(dp89
+S'date'
+p90
+S"<type 'datetime.date'>"
+p91
+sS'PERIOD_START'
+p92
+S'datetime.datetime(2013, 11, 10, 0, 0)'
+p93
+sS'PERIOD_END'
+p94
+S'datetime.datetime(2013, 11, 23, 0, 0)'
+p95
+sS'date.today'
+p96
+S'<built-in method today of type object>'
+p97
+ssg70
+I10
+sg71
+(dp98
+I5
+S'#LAST_PERIOD_END = datetime(2013, 11, 23)'
+p99
+sI6
+S'###############################################'
+p100
+sI7
+S'FIRST_PERIOD_START = datetime(2013, 11, 10)'
+p101
+sI8
+S'PERIOD_START = FIRST_PERIOD_START'
+p102
+sI9
+S'PERIOD_END = PERIOD_START + timedelta(days = 13)'
+p103
+sI10
+S'while not (PERIOD_START <= date.today() < PERIOD_END):'
+p104
+sI11
+S'    PERIOD_START += timedelta(days = 14)'
+p105
+sI12
+S'    PERIOD_END = PERIOD_START + timedelta(days = 13)'
+p106
+sI13
+S''
+sI14
+S'# TODO: increment periods ###############################################################################'
+p107
+ssg83
+S'()'
+p108
+sg85
+S'<module>'
+p109
+sasS'pyver'
+p110
+S'Python 2.7.5: /usr/bin/python (prefix: /System/Library/Frameworks/Python.framework/Versions/2.7)'
+p111
+sS'session'
+p112
+g57
+(S's\x82\x08\x00\x00<div><table><tr><td style="font-weight:bold;vertical-align:top">auth</td><td valign="top">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top">expiration</td><td valign="top">:</td><td><div>3600</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">hmac_key</td><td valign="top">:</td><td><div>132826fe-c379-4d66-b986-3ae0e5c4541b</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">last_visit</td><td valign="top">:</td><td><div>datetime.datetime(2013, 12, 12, 12, 23, 52, 665825)</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">user</td><td valign="top">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top">email</td><td valign="top">:</td><td><div>adinbaum@gmail.com</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">first_name</td><td valign="top">:</td><td><div>Adin</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">id</td><td valign="top">:</td><td><div>5L</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">last_name</td><td valign="top">:</td><td><div>Baumgarten</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">registration_id</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">registration_key</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">reset_password_key</td><td valign="top">:</td><td><div></div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">user_groups</td><td valign="top">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top">8</td><td valign="top">:</td><td><div>user_5</div></td></tr></table></div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">flash</td><td valign="top">:</td><td><div>None</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">last_orderby</td><td valign="top">:</td><td><div>None</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">last_query</td><td valign="top">:</td><td><div>db.auth_membership.user_id &gt; 0</div></td></tr></table></div>'
+tRp113
+sS'etype'
+p114
+S"<type 'exceptions.TypeError'>"
+p115
+sS'date'
+p116
+S'Thu Dec 12 12:26:35 2013'
+p117
+sS'response'
+p118
+g57
+(S's\x03-\x00\x00<div><table><tr><td style="font-weight:bold;vertical-align:top">body</td><td valign="top">:</td><td><div>&lt;cStringIO.StringO object at 0x108546650&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">cookies</td><td valign="top">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top">session_id_siriadmin</td><td valign="top">:</td><td><div>127.0.0.1-1eb9339d-d71d-4001-8088-3dd16cb84de5<table><tr><td style="font-weight:bold;vertical-align:top">comment</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">domain</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">expires</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">httponly</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">max-age</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">path</td><td valign="top">:</td><td><div>/</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">secure</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">version</td><td valign="top">:</td><td><div></div></td></tr></table></div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">delimiters</td><td valign="top">:</td><td><div><table><tr><td><div>{{</div></td></tr><tr><td><div>}}</div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">files</td><td valign="top">:</td><td><div><table></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">flash</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">generic_patterns</td><td valign="top">:</td><td><div><table><tr><td><div>*</div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">google_analytics_id</td><td valign="top">:</td><td><div>None</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">headers</td><td valign="top">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top">X-Powered-By</td><td valign="top">:</td><td><div>web2py</div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">logo</td><td valign="top">:</td><td><div><a class="brand" href="/siriadmin/default/clockadmin"><b>SIRI</b>&trade;&nbsp;</a></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">menu</td><td valign="top">:</td><td><div><table><tr><td><div><table><tr><td><div>Home</div></td></tr><tr><td><div>False</div></td></tr><tr><td><div>/siriadmin/default/index</div></td></tr><tr><td><div><table></table></div></td></tr></table></div></td></tr><tr><td><div><table><tr><td><div><span class="highlighted">web2py</span></div></td></tr><tr><td><div>False</div></td></tr><tr><td><div>http://web2py.com</div></td></tr><tr><td><div><table><tr><td><div><table><tr><td><div>My Sites</div></td></tr><tr><td><div>False</div></td></tr><tr><td><div>/admin/default/site</div></td></tr></table></div></td></tr><tr><td><div><table><tr><td><div>This App</div></td></tr><tr><td><div>False</div></td></tr><tr><td><div>/admin/default/design/siriadmin</div></td></tr><tr><td><div>[(&lt;lazyT &#x27;Controller&#x27;&gt;, False, &#x27;/admin/default/edit/siriadmin/controllers/timeclock.py&#x27;), (&lt;lazyT &#x27;View&#x27;&gt;, False, &#x27;/admin/default/edit/siriadmin/views/timeclock/employeedash.html&#x27;), (&lt;lazyT &#x27;Layout&#x27;&gt;, False, &#x27;/admin/default/edit/siriadmin/views/layout.html&#x27;), (&lt;lazyT &#x27;Stylesheet&#x27;&gt;, False, &#x27;/admin/default/edit/siriadmin/static/css/web2py.css&#x27;), (&lt;lazyT &#x27;DB Model&#x27;&gt;, False, &#x27;/admin/default/edit/siriadmin/models/db.py&#x27;), (&lt;lazyT &#x27;Menu Model&#x27;&gt;, False, &#x27;/admin/default/edit/siriadmin/models/menu.py&#x27;), (&lt;lazyT &#x27;Database&#x27;&gt;, False, &#x27;/siriadmin/appadmin/index&#x27;), (&lt;lazyT &#x27;Errors&#x27;&gt;, False, &#x27;/admin/default/errors/siriadmin&#x27;), (&lt;lazyT &#x27;About&#x27;&gt;, False, &#x27;/admin/default/about/siriadmin&#x27;)]</div></td></tr></table></div></td></tr><tr><td><div><table><tr><td><div>web2py.com</div></td></tr><tr><td><div>False</div></td></tr><tr><td><div>http://www.web2py.com</div></td></tr><tr><td><div>[(&lt;lazyT &#x27;Download&#x27;&gt;, False, &#x27;http://www.web2py.com/examples/default/download&#x27;), (&lt;lazyT &#x27;Support&#x27;&gt;, False, &#x27;http://www.web2py.com/examples/default/support&#x27;), (&lt;lazyT &#x27;Demo&#x27;&gt;, False, &#x27;http://web2py.com/demo_admin&#x27;), (&lt;lazyT &#x27;Quick Examples&#x27;&gt;, False, &#x27;http://web2py.com/examples/default/examples&#x27;), (&lt;lazyT &#x27;FAQ&#x27;&gt;, False, &#x27;http://web2py.com/AlterEgo&#x27;), (&lt;lazyT &#x27;Videos&#x27;&gt;, False, &#x27;http://www.web2py.com/examples/default/videos/&#x27;), (&lt;lazyT &#x27;Free Applications&#x27;&gt;, False, &#x27;http://web2py.com/appliances&#x27;), (&lt;lazyT &#x27;Plugins&#x27;&gt;, False, &#x27;http://web2py.com/plugins&#x27;), (&lt;lazyT &#x27;Layouts&#x27;&gt;, False, &#x27;http://web2py.com/layouts&#x27;), (&lt;lazyT &#x27;Recipes&#x27;&gt;, False, &#x27;http://web2pyslices.com/&#x27;), (&lt;lazyT &#x27;Semantic&#x27;&gt;, False, &#x27;http://web2py.com/semantic&#x27;)]</div></td></tr></table></div></td></tr><tr><td><div><table><tr><td><div>Documentation</div></td></tr><tr><td><div>False</div></td></tr><tr><td><div>http://www.web2py.com/book</div></td></tr><tr><td><div>[(&lt;lazyT &#x27;Preface&#x27;&gt;, False, &#x27;http://www.web2py.com/book/default/chapter/00&#x27;), (&lt;lazyT &#x27;Introduction&#x27;&gt;, False, &#x27;http://www.web2py.com/book/default/chapter/01&#x27;), (&lt;lazyT &#x27;Python&#x27;&gt;, False, &#x27;http://www.web2py.com/book/default/chapter/02&#x27;), (&lt;lazyT &#x27;Overview&#x27;&gt;, False, &#x27;http://www.web2py.com/book/default/chapter/03&#x27;), (&lt;lazyT &#x27;The Core&#x27;&gt;, False, &#x27;http://www.web2py.com/book/default/chapter/04&#x27;), (&lt;lazyT &#x27;The Views&#x27;&gt;, False, &#x27;http://www.web2py.com/book/default/chapter/05&#x27;), (&lt;lazyT &#x27;Database&#x27;&gt;, False, &#x27;http://www.web2py.com/book/default/chapter/06&#x27;), (&lt;lazyT &#x27;Forms and Validators&#x27;&gt;, False, &#x27;http://www.web2py.com/book/default/chapter/07&#x27;), (&lt;lazyT &#x27;Email and SMS&#x27;&gt;, False, &#x27;http://www.web2py.com/book/default/chapter/08&#x27;), (&lt;lazyT &#x27;Access Control&#x27;&gt;, False, &#x27;http://www.web2py.com/book/default/chapter/09&#x27;), (&lt;lazyT &#x27;Services&#x27;&gt;, False, &#x27;http://www.web2py.com/book/default/chapter/10&#x27;), (&lt;lazyT &#x27;Ajax Recipes&#x27;&gt;, False, &#x27;http://www.web2py.com/book/default/chapter/11&#x27;), (&lt;lazyT &#x27;Components and Plugins&#x27;&gt;, False, &#x27;http://www.web2py.com/book/default/chapter/12&#x27;), (&lt;lazyT &#x27;Deployment Recipes&#x27;&gt;, False, &#x27;http://www.web2py.com/book/default/chapter/13&#x27;), (&lt;lazyT &#x27;Other Recipes&#x27;&gt;, False, &#x27;http://www.web2py.com/book/default/chapter/14&#x27;), (&lt;lazyT &#x27;Buy this book&#x27;&gt;, False, &#x27;http://stores.lulu.com/web2py&#x27;)]</div></td></tr></table></div></td></tr><tr><td><div><table><tr><td><div>Community</div></td></tr><tr><td><div>False</div></td></tr><tr><td><div>None</div></td></tr><tr><td><div>[(&lt;lazyT &#x27;Groups&#x27;&gt;, False, &#x27;http://www.web2py.com/examples/default/usergroups&#x27;), (&lt;lazyT &#x27;Twitter&#x27;&gt;, False, &#x27;http://twitter.com/web2py&#x27;), (&lt;lazyT &#x27;Live Chat&#x27;&gt;, False, &#x27;http://webchat.freenode.net/?channels=web2py&#x27;)]</div></td></tr></table></div></td></tr><tr><td><div><table><tr><td><div>Plugins</div></td></tr><tr><td><div>False</div></td></tr><tr><td><div>None</div></td></tr><tr><td><div>[(&#x27;plugin_wiki&#x27;, False, &#x27;http://web2py.com/examples/default/download&#x27;), (&lt;lazyT &#x27;Other Plugins&#x27;&gt;, False, &#x27;http://web2py.com/plugins&#x27;), (&lt;lazyT &#x27;Layout Plugins&#x27;&gt;, False, &#x27;http://web2py.com/layouts&#x27;)]</div></td></tr></table></div></td></tr></table></div></td></tr></table></div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">meta</td><td valign="top">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top">author</td><td valign="top">:</td><td><div>Evan Caldwell &lt;evancaldwell@yahoo.com&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">description</td><td valign="top">:</td><td><div>A time clock for SIRI employees</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">generator</td><td valign="top">:</td><td><div>Web2py Web Framework</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">keywords</td><td valign="top">:</td><td><div>SIRI, time, clock</div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">models_to_run</td><td valign="top">:</td><td><div><table><tr><td><div>^\\w+\\.py$</div></td></tr><tr><td><div>^timeclock/\\w+\\.py$</div></td></tr><tr><td><div>^timeclock/employeedash/\\w+\\.py$</div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">postprocessing</td><td valign="top">:</td><td><div><table></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">session_cookie_expires</td><td valign="top">:</td><td><div>None</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">session_data_name</td><td valign="top">:</td><td><div>session_data_siriadmin</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">session_file</td><td valign="top">:</td><td><div>&lt;open file &#x27;/Users/adin/Work/SIRI/TimeClock/siri/applications/siriadmin/sessions/127.0.0.1-1eb9339d-d71d-4001-8088-3dd16cb84de5&#x27;, mode &#x27;rb+&#x27; at 0x1085bfb70&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">session_filename</td><td valign="top">:</td><td><div>/Users/adin/Work/SIRI/TimeClock/siri/applications/siriadmin/sessions/127.0.0.1-1eb9339d-d71d-4001-8088-3dd16cb84de5</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">session_id</td><td valign="top">:</td><td><div>127.0.0.1-1eb9339d-d71d-4001-8088-3dd16cb84de5</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">session_id_name</td><td valign="top">:</td><td><div>session_id_siriadmin</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">session_locked</td><td valign="top">:</td><td><div>True</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">session_new</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">session_storage_type</td><td valign="top">:</td><td><div>file</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">status</td><td valign="top">:</td><td><div>200</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">subtitle</td><td valign="top">:</td><td><div>customize me!</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">title</td><td valign="top">:</td><td><div>SIRI Admin</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">view</td><td valign="top">:</td><td><div>timeclock/employeedash.html</div></td></tr></table></div>'
+tRp119
+sS'locals'
+p120
+(dp121
+S'Service'
+p122
+S"<class 'gluon.tools.Service'>"
+p123
+sS'antlr'
+p124
+S"<module 'xlwt.antlr' from '/Library/Python/2.7/site-packages/xlwt/antlr.pyc'>"
+p125
+sS'OBJECT'
+p126
+S"<class 'gluon.html.OBJECT'>"
+p127
+sS'datetime'
+p128
+S"<type 'datetime.datetime'>"
+p129
+sg112
+S"<Storage {'last_query': 'db.auth_membership.user...login]': '723730d3-22c8-41b5-962f-fdcc1394c424'}>"
+p130
+sS'LINK'
+p131
+S"<class 'gluon.html.LINK'>"
+p132
+sS'BR'
+p133
+S"<class 'gluon.html.BR'>"
+p134
+sS'local_import'
+p135
+S'<function <lambda>>'
+p136
+sS'OPTGROUP'
+p137
+S"<class 'gluon.html.OPTGROUP'>"
+p138
+sS'add_palette_colour'
+p139
+S'<function add_palette_colour>'
+p140
+sS'LI'
+p141
+S"<class 'gluon.html.LI'>"
+p142
+sS'redirect'
+p143
+S'<function redirect>'
+p144
+sS'IS_INT_IN_RANGE'
+p145
+S"<class 'gluon.validators.IS_INT_IN_RANGE'>"
+p146
+sS'struct'
+p147
+S"<module 'struct' from '/System/Library/Framework...framework/Versions/2.7/lib/python2.7/struct.pyc'>"
+p148
+sS'IS_LOWER'
+p149
+S"<class 'gluon.validators.IS_LOWER'>"
+p150
+sS'IS_STRONG'
+p151
+S"<class 'gluon.validators.IS_STRONG'>"
+p152
+sS'cache'
+p153
+S'<gluon.cache.Cache object>'
+p154
+sS'IS_IN_DB'
+p155
+S"<class 'gluon.validators.IS_IN_DB'>"
+p156
+sS'TAG'
+p157
+S'<gluon.html.__TAG__ object>'
+p158
+sS'tzinfo'
+p159
+S"<type 'datetime.tzinfo'>"
+p160
+sS'mail'
+p161
+S'<gluon.tools.Mail object>'
+p162
+sS'ExcelFormulaParser'
+p163
+S"<module 'xlwt.ExcelFormulaParser' from '/Library...n/2.7/site-packages/xlwt/ExcelFormulaParser.pyc'>"
+p164
+sS'BODY'
+p165
+S"<class 'gluon.html.BODY'>"
+p166
+sS'IS_DATE_IN_RANGE'
+p167
+S"<class 'gluon.validators.IS_DATE_IN_RANGE'>"
+p168
+sS'TH'
+p169
+S"<class 'gluon.html.TH'>"
+p170
+sS'URL'
+p171
+S'<function URL>'
+p172
+sS'__file__'
+p173
+S"'/Users/adin/Work/SIRI/TimeClock/siri/applications/siriadmin/controllers/timeclock.py'"
+p174
+sS'db'
+p175
+S'<DAL uri="sqlite://storage.sqlite">'
+p176
+sS'auth'
+p177
+S'<gluon.tools.Auth object>'
+p178
+sS'P'
+S"<class 'gluon.html.P'>"
+p179
+sS'T'
+S'<gluon.languages.translator object>'
+p180
+sS'Workbook'
+p181
+S"<class 'xlwt.Workbook.Workbook'>"
+p182
+sS'SPAN'
+p183
+S"<class 'gluon.html.SPAN'>"
+p184
+sS'XHTML'
+p185
+S"<class 'gluon.html.XHTML'>"
+p186
+sS'SQLDB'
+p187
+S"<class 'gluon.dal.DAL'>"
+p188
+sS'ON'
+p189
+S'True'
+p190
+sS'OL'
+p191
+S"<class 'gluon.html.OL'>"
+p192
+sS'ExcelFormulaLexer'
+p193
+S"<module 'xlwt.ExcelFormulaLexer' from '/Library/...on/2.7/site-packages/xlwt/ExcelFormulaLexer.pyc'>"
+p194
+sS'TEXTAREA'
+p195
+S"<class 'gluon.html.TEXTAREA'>"
+p196
+sS'crud'
+p197
+S'<gluon.tools.Crud object>'
+p198
+sS'MENU'
+p199
+S"<class 'gluon.html.MENU'>"
+p200
+sS'Utils'
+p201
+S"<module 'xlwt.Utils' from '/Library/Python/2.7/site-packages/xlwt/Utils.pyc'>"
+p202
+sS'IS_IMAGE'
+p203
+S"<class 'gluon.validators.IS_IMAGE'>"
+p204
+sS'PERIOD_START'
+p205
+S'datetime.datetime(2013, 11, 10, 0, 0)'
+p206
+sS'Font'
+p207
+S"<class 'xlwt.Formatting.Font'>"
+p208
+sS'EM'
+p209
+S"<class 'gluon.html.EM'>"
+p210
+sS'CODE'
+p211
+S"<class 'gluon.html.CODE'>"
+p212
+sS'HTTP'
+p213
+S"<class 'gluon.http.HTTP'>"
+p214
+sS'ExcelFormula'
+p215
+S"<module 'xlwt.ExcelFormula' from '/Library/Python/2.7/site-packages/xlwt/ExcelFormula.pyc'>"
+p216
+sS'HR'
+p217
+S"<class 'gluon.html.HR'>"
+p218
+sS'Pattern'
+p219
+S"<class 'xlwt.Formatting.Pattern'>"
+p220
+sS'PERIOD_END'
+p221
+S'datetime.datetime(2013, 11, 23, 0, 0)'
+p222
+sS'HEAD'
+p223
+S"<class 'gluon.html.HEAD'>"
+p224
+sS'LABEL'
+p225
+S"<class 'gluon.html.LABEL'>"
+p226
+sS'CLEANUP'
+p227
+S"<class 'gluon.validators.CLEANUP'>"
+p228
+sS'plugins'
+p229
+S'<gluon.tools.PluginManager object>'
+p230
+sS'Employee'
+p231
+S"<class '__restricted__.Employee'>"
+p232
+sS'Formula'
+p233
+S"<class 'xlwt.ExcelFormula.Formula'>"
+p234
+sS'SELECT'
+p235
+S"<class 'gluon.html.SELECT'>"
+p236
+sS'use_janrain'
+p237
+S'<function use_janrain>'
+p238
+sS'timedelta'
+p239
+S"<type 'datetime.timedelta'>"
+p240
+sS'prettydate'
+p241
+S'<function prettydate>'
+p242
+sS'Crud'
+p243
+S"<class 'gluon.tools.Crud'>"
+p244
+sS'Auth'
+p245
+S"<class 'gluon.tools.Auth'>"
+p246
+sS'DEVELOPMENT_MENU'
+p247
+g190
+sS'IS_EQUAL_TO'
+p248
+S"<class 'gluon.validators.IS_EQUAL_TO'>"
+p249
+sS'HTML'
+p250
+S"<class 'gluon.html.HTML'>"
+p251
+sS'SQLFORM'
+p252
+S"<class 'gluon.sqlhtml.SQLFORM'>"
+p253
+sS'LOAD'
+p254
+S'<function LOAD>'
+p255
+sS'PRE'
+p256
+S"<class 'gluon.html.PRE'>"
+p257
+sS'FIELDSET'
+p258
+S"<class 'gluon.html.FIELDSET'>"
+p259
+sS'__builtins__'
+p260
+S"{'ArithmeticError': <type 'exceptions.ArithmeticError'>, 'AssertionError': <type 'exceptions.AssertionError'>, 'AttributeError': <type 'exceptions.AttributeError'>, 'BaseException': <type 'exceptions.BaseException'>, 'BufferError': <type 'exceptions.BufferError'>, 'BytesWarning': <type 'exceptions.BytesWarning'>, 'DeprecationWarning': <type 'exceptions.DeprecationWarning'>, 'EOFError': <type 'exceptions.EOFError'>, 'Ellipsis': Ellipsis, 'EnvironmentError': <type 'exceptions.EnvironmentError'>, ...}"
+p261
+sS'embed64'
+p262
+S'<function embed64>'
+p263
+sS'IS_LIST_OF'
+p264
+S"<class 'gluon.validators.IS_LIST_OF'>"
+p265
+sS'INPUT'
+p266
+S"<class 'gluon.html.INPUT'>"
+p267
+sS'EMBED'
+p268
+S"<class 'gluon.html.EMBED'>"
+p269
+sS'_'
+S'<function _>'
+p270
+sS'FIRST_PERIOD_START'
+p271
+S'datetime.datetime(2013, 11, 10, 0, 0)'
+p272
+sS'H2'
+p273
+S"<class 'gluon.html.H2'>"
+p274
+sS'H3'
+p275
+S"<class 'gluon.html.H3'>"
+p276
+sS'BUTTON'
+p277
+S"<class 'gluon.html.BUTTON'>"
+p278
+sS'H1'
+p279
+S"<class 'gluon.html.H1'>"
+p280
+sS'H6'
+p281
+S"<class 'gluon.html.H6'>"
+p282
+sS'H4'
+p283
+S"<class 'gluon.html.H4'>"
+p284
+sS'H5'
+p285
+S"<class 'gluon.html.H5'>"
+p286
+sS'UL'
+p287
+S"<class 'gluon.html.UL'>"
+p288
+sS'IS_UPPER'
+p289
+S"<class 'gluon.validators.IS_UPPER'>"
+p290
+sS'xmlescape'
+p291
+S'<function xmlescape>'
+p292
+sS'IS_TIME'
+p293
+S"<class 'gluon.validators.IS_TIME'>"
+p294
+sS'Alignment'
+p295
+S"<class 'xlwt.Formatting.Alignment'>"
+p296
+sS'Row'
+p297
+S"<class 'xlwt.Row.Row'>"
+p298
+sS'Style'
+p299
+S"<module 'xlwt.Style' from '/Library/Python/2.7/site-packages/xlwt/Style.pyc'>"
+p300
+sS'BIFFRecords'
+p301
+S"<module 'xlwt.BIFFRecords' from '/Library/Python/2.7/site-packages/xlwt/BIFFRecords.pyc'>"
+p302
+sS'OPTION'
+p303
+S"<class 'gluon.html.OPTION'>"
+p304
+sS'TITLE'
+p305
+S"<class 'gluon.html.TITLE'>"
+p306
+sS'CRYPT'
+p307
+S"<class 'gluon.validators.CRYPT'>"
+p308
+sS'IS_EMPTY_OR'
+p309
+S"<class 'gluon.validators.IS_EMPTY_OR'>"
+p310
+sS'MARKMIN'
+p311
+S"<class 'gluon.html.MARKMIN'>"
+p312
+sS'Cell'
+p313
+S"<module 'xlwt.Cell' from '/Library/Python/2.7/site-packages/xlwt/Cell.pyc'>"
+p314
+sS'__name__'
+p315
+S"'__restricted__'"
+p316
+sS'Borders'
+p317
+S"<class 'xlwt.Formatting.Borders'>"
+p318
+sS'STRONG'
+p319
+S"<class 'gluon.html.STRONG'>"
+p320
+sS'COL'
+p321
+S"<class 'gluon.html.COL'>"
+p322
+sS'easyfont'
+p323
+S'<function easyfont>'
+p324
+sS'XFStyle'
+p325
+S"<class 'xlwt.Style.XFStyle'>"
+p326
+sS'service'
+p327
+S'<gluon.tools.Service object>'
+p328
+sS'SCRIPT'
+p329
+S"<class 'gluon.html.SCRIPT'>"
+p330
+sS'Protection'
+p331
+S"<class 'xlwt.Formatting.Protection'>"
+p332
+sS'TABLE'
+p333
+S"<class 'gluon.html.TABLE'>"
+p334
+sS'IS_IPV4'
+p335
+S"<class 'gluon.validators.IS_IPV4'>"
+p336
+sS'IS_LENGTH'
+p337
+S"<class 'gluon.validators.IS_LENGTH'>"
+p338
+sS'IS_IPV6'
+p339
+S"<class 'gluon.validators.IS_IPV6'>"
+p340
+sS'XML'
+p341
+S"<class 'gluon.html.XML'>"
+p342
+sS'IS_DATETIME'
+p343
+S"<class 'gluon.validators.IS_DATETIME'>"
+p344
+sS'IMG'
+p345
+S"<class 'gluon.html.IMG'>"
+p346
+sS'Column'
+p347
+S"<class 'xlwt.Column.Column'>"
+p348
+sS'IS_MATCH'
+p349
+S"<class 'gluon.validators.IS_MATCH'>"
+p350
+sS'IS_ALPHANUMERIC'
+p351
+S"<class 'gluon.validators.IS_ALPHANUMERIC'>"
+p352
+sS'SQLField'
+p353
+S"<class 'gluon.dal.Field'>"
+p354
+sS'CENTER'
+p355
+S"<class 'gluon.html.CENTER'>"
+p356
+sS'IS_JSON'
+p357
+S"<class 'gluon.validators.IS_JSON'>"
+p358
+sS'IS_IPADDRESS'
+p359
+S"<class 'gluon.validators.IS_IPADDRESS'>"
+p360
+sS'IS_SLUG'
+p361
+S"<class 'gluon.validators.IS_SLUG'>"
+p362
+sS'Bitmap'
+p363
+S"<module 'xlwt.Bitmap' from '/Library/Python/2.7/site-packages/xlwt/Bitmap.pyc'>"
+p364
+sS'BEAUTIFY'
+p365
+S"<class 'gluon.html.BEAUTIFY'>"
+p366
+sS'META'
+p367
+S"<class 'gluon.html.META'>"
+p368
+sS'IS_DATE'
+p369
+S"<class 'gluon.validators.IS_DATE'>"
+p370
+sS'IS_EMAIL'
+p371
+S"<class 'gluon.validators.IS_EMAIL'>"
+p372
+sS'xlwt'
+p373
+S"<module 'xlwt' from '/Library/Python/2.7/site-packages/xlwt/__init__.pyc'>"
+p374
+sS'IS_NOT_EMPTY'
+p375
+S"<class 'gluon.validators.IS_NOT_EMPTY'>"
+p376
+sS'IS_FLOAT_IN_RANGE'
+p377
+S"<class 'gluon.validators.IS_FLOAT_IN_RANGE'>"
+p378
+sS'TBODY'
+p379
+S"<class 'gluon.html.TBODY'>"
+p380
+sS'CAT'
+p381
+S"<class 'gluon.html.CAT'>"
+p382
+sS'Field'
+p383
+S"<class 'gluon.dal.Field'>"
+p384
+sS'B'
+S"<class 'gluon.html.B'>"
+p385
+sS'ANTLRException'
+p386
+S"<class 'xlwt.antlr.ANTLRException'>"
+p387
+sS'DIV'
+p388
+S"<class 'gluon.html.DIV'>"
+p389
+sS'LEGEND'
+p390
+S"<class 'gluon.html.LEGEND'>"
+p391
+sS'ExcelMagic'
+p392
+S"<module 'xlwt.ExcelMagic' from '/Library/Python/2.7/site-packages/xlwt/ExcelMagic.pyc'>"
+p393
+sS'COLGROUP'
+p394
+S"<class 'gluon.html.COLGROUP'>"
+p395
+sS'DAL'
+p396
+S"<class 'gluon.dal.DAL'>"
+p397
+sS'easyxf'
+p398
+S'<function easyxf>'
+p399
+sS'TR'
+p400
+S"<class 'gluon.html.TR'>"
+p401
+sS'__package__'
+p402
+S'None'
+p403
+sS'SQLTABLE'
+p404
+S"<class 'gluon.sqlhtml.SQLTABLE'>"
+p405
+sS'UnicodeUtils'
+p406
+S"<module 'xlwt.UnicodeUtils' from '/Library/Python/2.7/site-packages/xlwt/UnicodeUtils.pyc'>"
+p407
+sS'IFRAME'
+p408
+S"<class 'gluon.html.IFRAME'>"
+p409
+sS'TD'
+p410
+S"<class 'gluon.html.TD'>"
+p411
+sS'PluginManager'
+p412
+S"<class 'gluon.tools.PluginManager'>"
+p413
+sS'IS_URL'
+p414
+S"<class 'gluon.validators.IS_URL'>"
+p415
+sS'A'
+S"<class 'gluon.html.A'>"
+p416
+sS'STYLE'
+p417
+S"<class 'gluon.html.STYLE'>"
+p418
+sS'IS_DATETIME_IN_RANGE'
+p419
+S"<class 'gluon.validators.IS_DATETIME_IN_RANGE'>"
+p420
+sS'FORM'
+p421
+S"<class 'gluon.html.FORM'>"
+p422
+sS'I'
+S"<class 'gluon.html.I'>"
+p423
+sS'Worksheet'
+p424
+S"<class 'xlwt.Worksheet.Worksheet'>"
+p425
+sS'IS_NOT_IN_DB'
+p426
+S"<class 'gluon.validators.IS_NOT_IN_DB'>"
+p427
+sS'Formatting'
+p428
+S"<module 'xlwt.Formatting' from '/Library/Python/2.7/site-packages/xlwt/Formatting.pyc'>"
+p429
+sg116
+S"<type 'datetime.date'>"
+p430
+sg118
+S"<Storage {'body': <cStringIO.StringO object at 0...8565500>, 'view': 'timeclock/employeedash.html'}>"
+p431
+sS'THEAD'
+p432
+S"<class 'gluon.html.THEAD'>"
+p433
+sS'ANY_OF'
+p434
+S"<class 'gluon.validators.ANY_OF'>"
+p435
+sS'IS_NULL_OR'
+p436
+S"<class 'gluon.validators.IS_EMPTY_OR'>"
+p437
+sg56
+S"<Storage {'function': 'employeedash', 'body': <c...ications/siriadmin/', 'post_vars': <Storage {}>}>"
+p438
+sS'IS_EXPR'
+p439
+S"<class 'gluon.validators.IS_EXPR'>"
+p440
+sS'IS_IN_SET'
+p441
+S"<class 'gluon.validators.IS_IN_SET'>"
+p442
+sS'IS_UPLOAD_FILENAME'
+p443
+S"<class 'gluon.validators.IS_UPLOAD_FILENAME'>"
+p444
+sS'time'
+p445
+S"<type 'datetime.time'>"
+p446
+sS'IS_DECIMAL_IN_RANGE'
+p447
+S"<class 'gluon.validators.IS_DECIMAL_IN_RANGE'>"
+p448
+sS'TT'
+p449
+S"<class 'gluon.html.TT'>"
+p450
+sS'TFOOT'
+p451
+S"<class 'gluon.html.TFOOT'>"
+p452
+sssS'traceback'
+p453
+S'Traceback (most recent call last):\n  File "/Users/adin/Work/SIRI/TimeClock/siri/gluon/restricted.py", line 212, in restricted\n    exec ccode in environment\n  File "/Users/adin/Work/SIRI/TimeClock/siri/applications/siriadmin/controllers/timeclock.py", line 10, in <module>\n    while not (PERIOD_START <= date.today() < PERIOD_END):\nTypeError: can\'t compare datetime.datetime to datetime.date\n'
+p454
+s.

@@ -1,8 +1,13 @@
 ########## Some Global Variables ##############
-PERIOD_START = datetime(2013, 12, 1) # TODO: implement tzinfo to make datetimes aware ############################
-PERIOD_END = datetime(2013, 12, 31)
-LAST_PERIOD_START = datetime(2013, 11, 10)
-LAST_PERIOD_END = datetime(2013, 11, 23)
+"""
+We need to find the current pay period
+"""
+FIRST_PERIOD_START = datetime(2013, 11, 10) # TODO: Get this set to the beginning of a pay period ############################
+PERIOD_START = FIRST_PERIOD_START           #TODO: implement tzinfo to make datetimes aware ############################
+PERIOD_END = PERIOD_START + timedelta(days = 13)
+while not (PERIOD_START <= datetime.now() < PERIOD_END):
+    PERIOD_START += timedelta(days = 14)
+    PERIOD_END = PERIOD_START + timedelta(days = 13)
 
 # TODO: increment periods ###############################################################################
 def index():
