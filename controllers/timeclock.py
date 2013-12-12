@@ -73,6 +73,23 @@ def displaytime():
     return dict(grid=grid)
 
 @auth.requires_login()
+def bulletin_board():
+    """
+    Shows the bulletin board and the form to submit a new comment
+    Includes pagination.
+    """
+    if len(request.args):
+        page=int(request.args[0])
+    else:
+        page = 0
+    items_per_page=5
+    limitby=(page * items_per_page, (page + 1) * items_per_page + 1)
+    comments=db(db.bulletin_post).select(limitby=limitby, orderby=~db.bulletin_post.created_on)
+
+    form=SQLFORM(db.bulletin_post).process(next=URL(args=[0]))
+    return locals()
+
+@auth.requires_login()
 def processinvoices():
     """
     A view to process and export invoices or various clients
