@@ -1,7 +1,7 @@
 {{extend 'layout.html'}}
 {{# TODO: convert the HTML to web2py helpers}}
 <div class="row">
-	<div id="span12 timeclock-entries">
+	<div id="span12 timeclock-entries" class="span12">
 		<h1>Entries</h1>
 		<table class="table table-striped">
 			<thead>
@@ -54,7 +54,7 @@
 </div>
 <hr>
 <div class="row">
-	<div id="span12 timeclock-form">
+	<div id="span12 timeclock-form" class="span6" style="float: left;">
 		<h1>Add Time</h1>
 		{{=form}}
 		<!-- TODO: manual form submit didn't work
@@ -71,7 +71,11 @@
 		</form>
 		-->
 	</div>
+	<div id="bulliten-board" class="span6" style="float: right;">
+		{{=LOAD('timeclock', 'bulletin_board.load', ajax=True, user_signature=True, ajax_trap=True)}}
+	</div>
 </div>
+
 
 <div id="contact_modal" class="modal hide fade">
     <div class="modal-header"><button type="button" class="close" data-dismiss="modal">&times;</button>&nbsp;</div>

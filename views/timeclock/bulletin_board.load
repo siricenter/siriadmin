@@ -1,0 +1,22 @@
+<h2>Bulletin board</h2>
+{{for i, post in enumerate(comments):}}
+	{{if i==items_per_page: break}}
+	<div class="post">
+  		{{=post.created_by.first_name}}:
+  		<blockquote class="post_body">{{=post.body}}
+  		<small>{{=post.created_on}}</small></blockquote>
+	</div>
+	{{pass}}
+
+{{if page:}}
+	{{=A('previous',_href=URL(args=[page-1]),cid=request.cid)}}
+	{{pass}}
+
+{{if len(comments)>items_per_page:}}
+	{{=A('next',_href=URL(args=[page+1]),cid=request.cid)}}
+	{{pass}}
+
+{{=form.custom.begin}}
+Your comment:<div>{{=form.custom.widget.body}}</div>
+{{=form.custom.submit}}
+{{=form.custom.end}}
