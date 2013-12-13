@@ -1,6 +1,6 @@
 ########## Some Global Variables ##############
 PERIOD_START = datetime(2013, 10, 1) # TODO: implement tzinfo to make datetimes aware ############################
-PERIOD_END = datetime(2013, 12, 7)
+PERIOD_END = datetime(2013, 12, 21)
 LAST_PERIOD_START = datetime(2013, 11, 10)
 LAST_PERIOD_END = datetime(2013, 11, 23)
 
@@ -18,8 +18,6 @@ def employeedash():
         response.flash = 'Thank you for submitting your time ' + str(form.vars.hours)
     elif form.errors:
         response.flash = 'There was an error on the form'
-    else:
-        response.flash = 'Welcome to your dashboard ' + session.auth.user.first_name
     response.title = session.auth.user.first_name + "'s Dashboard"
     response.subtitle = 'Current pay period is ' + PERIOD_START.strftime("%m/%d/%Y") + ' - ' + PERIOD_END.strftime("%m/%d/%Y")
 
@@ -36,7 +34,7 @@ def ask():
     if form.process().accepted:
         if mail.send(to='e.caldwell@sirinstitute.org',
                   subject='from %s' % session.auth.user.email,
-                  message = form.vars.question):
+                  message = form.vars.message):
             response.flash = 'Thank you'
             response.js = "jQuery('#%s').hide()" % request.cid
         else:
@@ -59,6 +57,43 @@ def addtime():
     response.subtitle = 'please fill out the form below'
     hoursTest = type(db.timeclock.time_in)
     return dict(form=form, hoursTest=hoursTest)
+
+def clockIn():
+    session.clockIn = datetime.today()
+    message = 'You successfully clocked in at: {:%H:%M}'.format(session.clockIn)
+    return message
+
+@auth.requires_signature()
+def clock_out_modal():
+    message = None
+    form=SQLFORM.factory(
+        Field('project', 'string', requires=IS_IN_DB(db,'siri_projects.name')),
+        Field('description', 'text', requires=IS_NOT_EMPTY()))
+    if form.process().accepted:
+        message = clockOut(form.vars.project, form.vars.description)
+    return dict(form=form, message=message)
+
+def clockOut(project, description):
+    session.clockOut = datetime.today()
+    hours = session.clockOut - session.clockIn
+    timeInAmPm = None
+    timeOutAmPm = None
+    usrId = session.auth.user.id
+    '''TODO: insert the new record into the DB.
+             how do they choose the project and enter description? pop up a modal - clock_out_modal?
+             what if the session ends before clock out? send a notifiction for next login?
+             convert timeIn/Out and ampm from 24 hour time'''
+    entryId = db.timeclock.insert({'project':project, 
+                                   'work_date':datetime.today(), 
+                                   'time_in':session.clockIn,
+                                   'time_in_ampm':timeInAmPm, 
+                                   'time_out':session.clockIn,
+                                   'time_out_ampm':timeInAmPm,
+                                   'description':description,
+                                   'hours':hours,
+                                   'usr_id':usrId})
+    message = 'You successfully clocked out at {0:%H:%M} for a total time of {1} {2} and {1} {3}.'.format(session.clockOut, hours, "hours", "minutes")
+    return message
 
 @auth.requires_login()
 def displaytime():
@@ -199,7 +234,6 @@ def convertGdOutput(entries):
     for entry in entries:
         outputEntries.extend([entry.work_date, entry.description, entry.hours, 10, float(entry.hours) * 10])
     return outputEntries
-
 
 def calcHours(form):
     timeIn = form.vars.time_in

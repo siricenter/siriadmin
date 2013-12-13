@@ -1,10 +1,15 @@
 {{extend 'layout.html'}}
 {{# TODO: convert the HTML to web2py helpers}}
+<div id="clock-in-out" class="row well well-small">
+	<div class="btn btn-large span2 pull-right" data-target="#clock_out_modal" data-toggle="modal">Clock Out</div>
+	<div class="btn btn-large span2 pull-right" onclick="ajax('clockIn', [], 'clock-message')">Clock In</div>
+	<div class="pull-right label label-success" id="clock-message"></div>
+</div>
 <div class="row">
 	<div id="span12 timeclock-entries">
 		<h1>Entries</h1>
 		<table class="table table-striped">
-			<thead>
+			<thead>data-target="#contact_modal" data-toggle="modal"
 				<tr class="table-header">
 					<td>Date</td>
 					<td>Time In</td>
@@ -78,6 +83,15 @@
     <div class="modal-body">
     	{{=H1('Please ask your question')}}
     	{{=LOAD('timeclock', 'ask.load', ajax=True, ajax_trap=True, user_signature=True)}}
+    </div>
+    <div class="modal-footer">&nbsp;</div>
+</div>
+
+<div id="clock_out_modal" class="modal hide fade">
+    <div class="modal-header"><button type="button" class="close" data-dismiss="modal">&times;</button>&nbsp;</div>
+    <div class="modal-body">
+    	{{=H1('Project')}}
+    	{{=LOAD('timeclock', 'clock_out_modal.load', ajax=True, ajax_trap=True, user_signature=True)}}
     </div>
     <div class="modal-footer">&nbsp;</div>
 </div>
