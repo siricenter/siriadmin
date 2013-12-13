@@ -42,10 +42,10 @@ response.generic_patterns = ['*'] if request.is_local else []
 # import gdata
 # import gdata.docs.service
 # import gspread
-import xlwt
+import xlwt, json
 from xlwt import *
 from datetime import datetime, date, time, timedelta, tzinfo
-from gluon.tools import Auth, Crud, Service, PluginManager, prettydate
+from gluon.tools import Auth, Crud, Service, PluginManager, prettydate, fetch
 auth = Auth(db)
 crud, service, plugins = Crud(db), Service(), PluginManager()
 
@@ -154,7 +154,7 @@ if auth.is_logged_in():
     db.siri_mentors.usr_id.default=auth.user.id
 
 db.define_table('siri_students',
-    Field('usr_id','reference auth_user'),
+    Field('usr_id','reference auth_user', unique=True),
 )
 db.siri_students.usr_id.writable = db.siri_students.usr_id.readable = False
 if auth.is_logged_in():
@@ -164,6 +164,13 @@ if auth.is_logged_in():
 db.define_table('bulletin_post',
     Field('body', 'string',label="Your comment"),
     auth.signature)
+
+# for trello authorization keys
+db.define_table('trello_auth',
+    Field('token', 'string', label="Trello Token"),
+    Field('usr_id','reference auth_user', label='ID', readable=False, writable=False))
+if auth.is_logged_in():
+    db.trello_auth.usr_id.default = auth.user.id
 
 db.define_table('fs_volunteers',
     Field('usr_id','reference auth_user'),

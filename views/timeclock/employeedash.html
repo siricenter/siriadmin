@@ -1,3 +1,9 @@
+<head> <!-- ... --> <!-- The client library requires jQuery --> 
+	<script src="http://code.jquery.com/jquery-1.7.1.min.js"></script> 
+	<script src="https://api.trello.com/1/client.js?key=dfa1c6f431ffce07a6cd11a9daa0d081"></script> <!-- ... --> </head>
+
+
+
 {{extend 'layout.html'}}
 {{# TODO: convert the HTML to web2py helpers}}
 <div class="row">
@@ -70,13 +76,17 @@
 		-->
 	</div>
 	<div id="bulliten-board" class="span6" style="float: right;">
+		<h1>Bulletin Board</h1>
 		{{=LOAD('timeclock', 'bulletin_board.load', ajax=True, user_signature=True, ajax_trap=True)}}
 	</div>
 </div>
 <hr>
 <div class="row">
+	<div>
+		<!--<iframe id="forecast_embed" type="text/html" frameborder="0" height="245" width="100%" src="http://forecast.io/embed/#lat=43.8261&lon=-111.7831&name=Rexburg"> </iframe>--> 
+	</div>
 	<div class="span12">
-		{{="This is to be filled with all of the project specific dash board stuff"}}
+		{{=LOAD('timeclock', 'trello.load', ajax=True, ajax_trap=True, user_signature=True)}}
 	</div>
 </div>
 
@@ -85,7 +95,7 @@
     <div class="modal-header"><button type="button" class="close" data-dismiss="modal">&times;</button>&nbsp;</div>
     <div class="modal-body">
     	{{=H1('Please ask your question')}}
-    	{{=LOAD('timeclock', 'ask.load', ajax=True, ajax_trap=True, user_signature=True)}}
+    	{{=LOAD('timeclock', 'ask.load', ajax=True, ajax_trap=False, user_signature=True)}}
     </div>
     <div class="modal-footer">&nbsp;</div>
 </div>

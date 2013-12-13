@@ -1,4 +1,3 @@
-<h2>Bulletin board</h2>
 {{for i, post in enumerate(comments):}}
 	{{if i==items_per_page: break}}
 	<div class="post">

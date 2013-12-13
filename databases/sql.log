@@ -245,3 +245,10 @@ CREATE TABLE bulletin_post_archive(
     modified_by INTEGER REFERENCES auth_user (id) ON DELETE CASCADE
 );
 success!
+timestamp: 2013-12-12T16:51:58.857859
+CREATE TABLE trello_auth(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    token TEXT,
+    usr_id INTEGER REFERENCES auth_user (id) ON DELETE CASCADE
+);
+success!

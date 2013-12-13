@@ -98,6 +98,21 @@ def bulletin_board():
     form=SQLFORM(db.bulletin_post).process(next=URL(args=[0]))
     return locals()
 
+def trello():
+    """
+    Will eventuall show trellow information
+    """
+    APIKEY = "dfa1c6f431ffce07a6cd11a9daa0d081"
+    APISECRET = "fb89378fdb1f65d8c2b03af9ee3314b76e92fc33cceca6a76a03964da07a8f69"
+    requestURL = "https://trello.com/1/authorize?key=%s&name=SIRI&expiration=30days&response_type=token" % APIKEY
+    token = db(db.trello_auth.usr_id == session.auth.user.id).select(db.trello_auth.token)[0].token
+    form = SQLFORM(db.trello_auth).process(next=URL(args=[0]))
+    getBoardsURL = "https://trello.com/1/members/my/boards?key=%s&token=%s" % (APIKEY, token)
+
+    boards = json.loads(fetch(getBoardsURL).decode('utf8'))
+    return locals()
+
+
 @auth.requires_login()
 def processinvoices():
     """
