@@ -107,11 +107,15 @@ def trello():
     requestURL = "https://trello.com/1/authorize?key=%s&name=SIRI&expiration=30days&response_type=token" % APIKEY
     token = db(db.trello_auth.usr_id == session.auth.user.id).select(db.trello_auth.token)[0].token
     form = SQLFORM(db.trello_auth).process(next=URL(args=[0]))
-    getBoardsURL = "https://trello.com/1/members/my/boards?key=%s&token=%s" % (APIKEY, token)
-
-    boards = json.loads(fetch(getBoardsURL).decode('utf8'))
+    getBoardsURL = "https://trello.com/1/members/my/notifications/?key=%s&token=%s&read_filter=unread&fields=data,unread" % (APIKEY, token)
+    page = fetch(getBoardsURL)
+    notifications = json.loads(page.decode('utf8'))
+    unreadNotifications = len(notifications)
+    #linkList = []
+    #for note in notifications:
+    #    linkList.append("https://trello.com/c/" + note["data"]["card"]["shortlink"])
     return locals()
-
+    # https://trello.com/c/gjmBBLSs/14-use-as-many-boards-as-you-want-we-ll-make-more
 
 @auth.requires_login()
 def processinvoices():

@@ -33,12 +33,15 @@ even if the function is called via ajax.
 	Trello Token:<div>{{=form.custom.widget.token}}</div>
 	{{=form.custom.submit}}{{=A('get token from trello', _href=requestURL, _target="_blank")}}
 	{{=form.custom.end}}
-{{else:}}
-	{{=token}}
+{{else:}} 
+	You have {{=unreadNotifications}} unread {{='notification' if unreadNotifications == 1 else 'notifications'}}.
+	{{for note in notifications:}}
+		<li>{{=A(note["data"]["card"]["name"], _href="https://trello.com/c/"+note["data"]["card"]["shortLink"])}}</li>
+	{{pass}}
 {{pass}}
-
+<!--
 <hr />
 {{if len(response._vars)==1:}}
 	{{=response._vars.values()[0]}}
 {{else:}}
-	{{=BEAUTIFY(response._vars)}}{{pass}}
+	{{=BEAUTIFY(response._vars)}}{{pass}}-->
