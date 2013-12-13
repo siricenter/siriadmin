@@ -1,10 +1,25 @@
 ########## Some Global Variables ##############
+<<<<<<< HEAD
 PERIOD_START = datetime(2013, 10, 1) # TODO: implement tzinfo to make datetimes aware ############################
 PERIOD_END = datetime(2013, 12, 21)
 LAST_PERIOD_START = datetime(2013, 11, 10)
 LAST_PERIOD_END = datetime(2013, 11, 23)
+=======
+"""
+We need to find the current pay period
+"""
+FIRST_PERIOD_START = datetime(2013, 11, 10) # TODO: Get this set to the beginning of a pay period ############################
+PERIOD_START = FIRST_PERIOD_START           # TODO: implement tzinfo to make datetimes aware ############################
+PAY_PERIOD = timedelta(weeks = 2) - timedelta(microseconds=1)
+PERIOD_END = PERIOD_START + PAY_PERIOD
+NOW = datetime.now()
+while not (PERIOD_START <= NOW < PERIOD_END):
+    PERIOD_START += timedelta(weeks = 2)
+    PERIOD_END = PERIOD_START + PAY_PERIOD
+>>>>>>> d074592ea41fa014ecff732d3ac2a83522e390f0
 
-# TODO: increment periods ###############################################################################
+def index():
+    redirect(URL(employeedash))
 
 @auth.requires_login()
 def employeedash():
@@ -23,9 +38,10 @@ def employeedash():
 
     query = (db.timeclock.usr_id == session.auth.user.id)&(db.timeclock.work_date > PERIOD_START)&(db.timeclock.work_date < PERIOD_END)
     clockEntries = db(query).select(db.timeclock.ALL, orderby=~db.timeclock.work_date)
-    totalHours = 0
+    sum = db.timeclock.hours.sum()
+    totalHours = db(query).select(sum).first()[sum] or 0
 
-    return dict(form=form, clockEntries=clockEntries, totalHours=totalHours)
+    return locals() #dict(form=form, clockEntries=clockEntries, totalHours=totalHours)
 
 @auth.requires_signature()
 def ask():
@@ -106,6 +122,23 @@ def displaytime():
     grid = SQLFORM.grid(query, deletable=False, editable=False, create=False, orderby=~db.timeclock.work_date)
 
     return dict(grid=grid)
+
+@auth.requires_login()
+def bulletin_board():
+    """
+    Shows the bulletin board and the form to submit a new comment
+    Includes pagination.
+    """
+    if len(request.args):
+        page=int(request.args[0])
+    else:
+        page = 0
+    items_per_page=5
+    limitby=(page * items_per_page, (page + 1) * items_per_page + 1)
+    comments=db(db.bulletin_post).select(limitby=limitby, orderby=~db.bulletin_post.created_on)
+
+    form=SQLFORM(db.bulletin_post).process(next=URL(args=[0]))
+    return locals()
 
 @auth.requires_login()
 def processinvoices():

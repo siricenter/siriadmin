@@ -222,3 +222,26 @@ timestamp: 2013-12-07T05:16:44.345140
 ALTER TABLE timeclock ADD time_in_ampm CHAR(512);
 timestamp: 2013-12-07T05:16:44.424431
 ALTER TABLE timeclock ADD time_out_ampm CHAR(512);
+timestamp: 2013-12-12T10:17:01.871499
+CREATE TABLE bulletin_post(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    body CHAR(512),
+    is_active CHAR(1),
+    created_on TIMESTAMP,
+    created_by INTEGER REFERENCES auth_user (id) ON DELETE CASCADE,
+    modified_on TIMESTAMP,
+    modified_by INTEGER REFERENCES auth_user (id) ON DELETE CASCADE
+);
+success!
+timestamp: 2013-12-12T10:17:01.944139
+CREATE TABLE bulletin_post_archive(
+    current_record INTEGER REFERENCES bulletin_post (id) ON DELETE CASCADE,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    body CHAR(512),
+    is_active CHAR(1),
+    created_on TIMESTAMP,
+    created_by INTEGER REFERENCES auth_user (id) ON DELETE CASCADE,
+    modified_on TIMESTAMP,
+    modified_by INTEGER REFERENCES auth_user (id) ON DELETE CASCADE
+);
+success!

@@ -6,7 +6,7 @@
 	<div class="pull-right label label-success" id="clock-message"></div>
 </div>
 <div class="row">
-	<div id="span12 timeclock-entries">
+	<div id="span12 timeclock-entries" class="span12">
 		<h1>Entries</h1>
 		<table class="table table-striped">
 			<thead>data-target="#contact_modal" data-toggle="modal"
@@ -23,19 +23,18 @@
 				{{if len(clockEntries) >= 15:}}
 					{{for i in xrange(15):}}
 					<tr>
-						<td>{{=clockEntries[i].work_date}}</td>
+						<td>{{=clockEntries[i].work_date.strftime("%m/%d/%Y")}}</td>
 						<td>{{=clockEntries[i].time_in}}</td>
 						<td>{{=clockEntries[i].time_out}}</td>
 						<td>{{=clockEntries[i].description}}</td>
 						<td>{{=clockEntries[i].hours}}</td>
 						<td>{{=A(I(_class="icon-exclamation-sign"), _href="mailto:e.caldwell@sirinstitute.org?Subject=Sending%20Test%20Email%20&Body=Test%20Message%20")}}</td>
 					</tr>
-					{{totalHours += clockEntries[i].hours}}
 					{{pass}}
 				{{else:}}
 					{{for entry in clockEntries:}}
 					<tr>
-						<td>{{=entry.work_date}}</td>
+						<td>{{=entry.work_date.strftime("%m/%d/%Y")}}</td>
 						<td>{{=entry.time_in}}</td>
 						<td>{{=entry.time_out}}</td>
 						<td>{{=entry.description}}</td>
@@ -44,7 +43,6 @@
 							<a class="" data-target="#contact_modal" data-toggle="modal"><i class="icon-exclamation-sign"></i></a>
 						</td>
 					</tr>
-					{{totalHours += entry.hours}}
 					{{pass}}
 				{{pass}}
 			</tbody>
@@ -59,7 +57,7 @@
 </div>
 <hr>
 <div class="row">
-	<div id="span12 timeclock-form">
+	<div id="span12 timeclock-form" class="span6" style="float: left;">
 		<h1>Add Time</h1>
 		{{=form}}
 		<!-- TODO: manual form submit didn't work
@@ -76,7 +74,17 @@
 		</form>
 		-->
 	</div>
+	<div id="bulliten-board" class="span6" style="float: right;">
+		{{=LOAD('timeclock', 'bulletin_board.load', ajax=True, user_signature=True, ajax_trap=True)}}
+	</div>
 </div>
+<hr>
+<div class="row">
+	<div class="span12">
+		{{="This is to be filled with all of the project specific dash board stuff"}}
+	</div>
+</div>
+
 
 <div id="contact_modal" class="modal hide fade">
     <div class="modal-header"><button type="button" class="close" data-dismiss="modal">&times;</button>&nbsp;</div>
@@ -86,6 +94,7 @@
     </div>
     <div class="modal-footer">&nbsp;</div>
 </div>
+<<<<<<< HEAD
 
 <div id="clock_out_modal" class="modal hide fade">
     <div class="modal-header"><button type="button" class="close" data-dismiss="modal">&times;</button>&nbsp;</div>
@@ -95,3 +104,5 @@
     </div>
     <div class="modal-footer">&nbsp;</div>
 </div>
+=======
+>>>>>>> d074592ea41fa014ecff732d3ac2a83522e390f0

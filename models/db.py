@@ -160,6 +160,11 @@ db.siri_students.usr_id.writable = db.siri_students.usr_id.readable = False
 if auth.is_logged_in():
     db.siri_students.usr_id.default=auth.user.id
 
+# for the dashboard bulletin board
+db.define_table('bulletin_post',
+    Field('body', 'string',label="Your comment"),
+    auth.signature)
+
 db.define_table('fs_volunteers',
     Field('usr_id','reference auth_user'),
     Field('opp_location','string',required=True),
