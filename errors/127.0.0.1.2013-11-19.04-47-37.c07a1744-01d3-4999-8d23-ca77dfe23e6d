@@ -1,0 +1,292 @@
+(dp1
+S'output'
+p2
+S"<type 'exceptions.ImportError'> Cannot import module 'gspread'"
+p3
+sS'layer'
+p4
+S'C:\\Users\\evan\\web2py\\applications\\siriadmin\\models\\db.py'
+p5
+sS'code'
+p6
+S'# -*- coding: utf-8 -*-\n\n#########################################################################\n## This scaffolding model makes your app work on Google App Engine too\n## File is released under public domain and you can use without limitations\n#########################################################################\n\n## if SSL/HTTPS is properly configured and you want all HTTP requests to\n## be redirected to HTTPS, uncomment the line below:\n# request.requires_https()\n\nif not request.env.web2py_runtime_gae:\n    ## if NOT running on Google App Engine use SQLite or other DB\n    db = DAL(\'sqlite://storage.sqlite\',pool_size=1,check_reserved=[\'all\'])\nelse:\n    ## connect to Google BigTable (optional \'google:datastore://namespace\')\n    db = DAL(\'google:datastore\')\n    ## store sessions and tickets there\n    session.connect(request, response, db=db)\n    ## or store session in Memcache, Redis, etc.\n    ## from gluon.contrib.memdb import MEMDB\n    ## from google.appengine.api.memcache import Client\n    ## session.connect(request, response, db = MEMDB(Client()))\n\n## by default give a view/generic.extension to all actions from localhost\n## none otherwise. a pattern can be \'controller/function.extension\'\nresponse.generic_patterns = [\'*\'] if request.is_local else []\n## (optional) optimize handling of static files\n# response.optimize_css = \'concat,minify,inline\'\n# response.optimize_js = \'concat,minify,inline\'\n\n#########################################################################\n## Here is sample code if you need for\n## - email capabilities\n## - authentication (registration, login, logout, ... )\n## - authorization (role based authorization)\n## - services (xml, csv, json, xmlrpc, jsonrpc, amf, rss)\n## - old style crud actions\n## (more options discussed in gluon/tools.py)\n#########################################################################\n\n# import gdata\nimport gspread\nfrom datetime import datetime, date, time\nfrom gluon.tools import Auth, Crud, Service, PluginManager, prettydate\nauth = Auth(db)\ncrud, service, plugins = Crud(db), Service(), PluginManager()\n\n## create all tables needed by auth if not custom tables\nauth.define_tables(username=False, signature=False)\n\n## configure email\nmail = auth.settings.mailer\nmail.settings.server = \'logging\' or \'smtp.gmail.com:587\'\nmail.settings.sender = \'evancaldwell@yahoo.com\'\nmail.settings.login = \'dawg3tt:mol090901!\'\n\n## configure auth policy\nauth.settings.registration_requires_verification = False\nauth.settings.registration_requires_approval = False\nauth.settings.reset_password_requires_verification = True\n\n## if you need to use OpenID, Facebook, MySpace, Twitter, Linkedin, etc.\n## register with janrain.com, write your domain:api_key in private/janrain.key\nfrom gluon.contrib.login_methods.rpx_account import use_janrain\nuse_janrain(auth, filename=\'private/janrain.key\')\n\n## this is the janrain login code for Facebook, Google, etc. login\n## TODO: token URL not whitelisted\n# from gluon.contrib.login_methods.rpx_account import RPXAccount\n# auth.settings.actions_disabled=[\'register\',\'change_password\',\'request_reset_password\']\n# auth.settings.login_form = RPXAccount(request,\n#     api_key=\'0caee29a1f349b43e83b5d1cb5cb5019eec2bef4\',\n#     domain=\'siri-admin\',\n#     url = "http://your-external-address/%s/default/user/login" % request.application)\n\n#########################################################################\n## Define your tables below (or better in another model file) for example\n##\n## >>> db.define_table(\'mytable\',Field(\'myfield\',\'string\'))\n##\n## Fields can be \'string\',\'text\',\'password\',\'integer\',\'double\',\'boolean\'\n##       \'date\',\'time\',\'datetime\',\'blob\',\'upload\', \'reference TABLENAME\'\n## There is an implicit \'id integer autoincrement\' field\n## Consult manual for more options, validators, etc.\n##\n## More API examples for controllers:\n##\n## >>> db.mytable.insert(myfield=\'value\')\n## >>> rows=db(db.mytable.myfield==\'value\').select(db.mytable.ALL)\n## >>> for row in rows: print row.id, row.myfield\n#########################################################################\n\n# db questions: should the students all be in one complex table or should they be in separate tables?\n\ndb.define_table(\'timeclock\',\n    Field(\'project\',\'string\', required=True, label=\'Project\'),\n    Field(\'work_date\',\'date\', required=True, label=\'Work Date\'),\n    Field(\'time_in\',\'time\', required=True, label=\'Time In\'),\n    Field(\'time_out\',\'time\', required=True, label=\'Time Out\'),\n    Field(\'description\', \'text\', required=True, label=\'Description\'),\n    Field(\'hours\',\'double\', label=\'hours\'),\n    Field(\'usr_id\',\'reference auth_user\', label=\'ID\', readable=False)\n)\ndb.timeclock.project.requires = IS_IN_DB(db,\'siri_projects.name\')\ndb.timeclock.work_date.requires = IS_DATE(format=\'%m/%d/%Y\')\ndb.timeclock.time_in.requires = IS_NOT_EMPTY()\ndb.timeclock.time_out.requires = IS_NOT_EMPTY()\ndb.timeclock.description.requires = IS_NOT_EMPTY()\n# db.timeclock.hours.readable = False\ndb.timeclock.usr_id.writable = db.timeclock.usr_id.readable = False\nif auth.is_logged_in():\n    db.timeclock.usr_id.default=auth.user.id\n    \ndb.define_table(\'siri_projects\',\n    Field(\'name\', \'string\', label=\'Name\'),\n    Field(\'description\', \'text\', label=\'Description\'),\n    Field(\'coordinator\', \'string\', label=\'Coordinator\'),\n    Field(\'contact_org\', \'string\', label=\'Organization\'),\n    Field(\'contact_name\', \'string\', required=True, label=\'Contact Person\'),\n    Field(\'contact_phone\', \'string\', label=\'Contact Phone\'),\n    Field(\'contact_email\', \'string\', required=True, label=\'Contact Email\'),\n    Field(\'contact_loc\', \'string\', label=\'Contact Location\'),\n    Field(\'num_students\', \'integer\', label=\'# of Students\'),\n    Field(\'reviewed\', \'boolean\', label=\'Reviewed\'),\n    Field(\'contracted\', \'boolean\', label=\'Contracted\'),\n    Field(\'is_active\', \'boolean\', label=\'Active\')\n)\ndb.siri_projects.reviewed.default=False\n\ndb.define_table(\'siri_mentors\',\n    Field(\'usr_id\',\'reference auth_user\'),\n    Field(\'project\', \'string\'),\n    Field(\'name\', \'string\'),\n    Field(\'phone\', \'string\'),\n    Field(\'email\', \'string\'),\n    Field(\'organization\', \'string\'),\n    Field(\'org_title\', \'string\'),\n    Field(\'mentor_type\', \'string\')\n)\ndb.siri_mentors.project.requires = IS_IN_DB(db,\'siri_projects.project_name\')\ndb.siri_mentors.mentor_type.requires = IS_IN_SET([\'Full Mentor\', \'Student Contact\', \'Coordinator\',\'Proect Mentor\'])\ndb.siri_mentors.usr_id.writable = db.siri_mentors.usr_id.readable = False\nif auth.is_logged_in():\n    db.siri_mentors.usr_id.default=auth.user.id\n\ndb.define_table(\'siri_students\',\n    Field(\'usr_id\',\'reference auth_user\'),\n)\ndb.siri_students.usr_id.writable = db.siri_students.usr_id.readable = False\nif auth.is_logged_in():\n    db.siri_students.usr_id.default=auth.user.id\n\ndb.define_table(\'fs_volunteers\',\n    Field(\'usr_id\',\'reference auth_user\'),\n    Field(\'opp_location\',\'string\',required=True),\n    Field(\'internship\',\'boolean\'),\n    Field(\'confirmed\',\'boolean\'),\n    Field(\'paid\',\'boolean\'),\n    Field(\'airfare_purchased\',\'boolean\'),\n    Field(\'housing_conf\',\'boolean\'),\n    Field(\'training_hotel\',\'boolean\'),\n    Field(\'training_hotel_resrv\',\'boolean\'),\n    Field(\'training_start\',\'date\'),\n    Field(\'training_end\',\'date\'),\n    Field(\'depart_date\',\'date\'),\n    Field(\'return_date\',\'date\'),\n    Field(\'work_start\',\'date\'),\n    Field(\'work_end\',\'date\'),\n    Field(\'birthday\',\'date\'),\n    Field(\'emergency_name\',\'string\'),\n    Field(\'emergency_phone\',\'string\'),\n    Field(\'archive\',\'boolean\')\n)\ndb.fs_volunteers.opp_location.requires = IS_IN_SET([\'Madrid\', \'Dominican Republic\', \'Montreal\'])\n\ndb.define_table(\'fs_prospects\',\n    Field(\'usr_id\',\'reference auth_user\'),\n    Field(\'candidate\',\'boolean\'),\n    Field(\'interested_location\',\'string\'),\n    Field(\'interested_dates\',\'string\'),\n    Field(\'speak_language\',\'string\'),\n    Field(\'language_level\',\'integer\'),\n    Field(\'referred_by\',\'string\'),  #**** how do I make it an option list\n    Field(\'resume\',\'upload\')\n)\ndb.fs_prospects.interested_location.requires = IS_IN_SET([\'Madrid\', \'Dominican Republic\', \'Montreal\',\'New Hampshire\'])\ndb.fs_prospects.speak_language.requires = IS_IN_SET([\'Spanish\', \'French\', \'Other\'])\ndb.fs_prospects.language_level.requires = IS_IN_SET([\'1 - Beginner\', \'2 - I know a few phrases\', \'3 - I can get by on my own\', \'4 - I am conversational\', \'5 - Native/Fluent\'])\ndb.fs_prospects.referred_by.requires = IS_IN_SET([\'International Studies Instructor\', \'Language Instructor\', \'University Email\', \'Know someone who went to a meeting\', \'Know someone who participated\', \'Found the website\'])\n\n## after defining tables, uncomment below to enable auditing\nauth.enable_record_versioning(db)\n'
+p7
+sS'snapshot'
+p8
+(dp9
+S'exception'
+p10
+(dp11
+S'__hash__'
+p12
+S"<method-wrapper '__hash__' of exceptions.ImportError object>"
+p13
+sS'__setattr__'
+p14
+S"<method-wrapper '__setattr__' of exceptions.ImportError object>"
+p15
+sS'__reduce_ex__'
+p16
+S'<built-in method __reduce_ex__ of exceptions.ImportError object>'
+p17
+sS'__getslice__'
+p18
+S"<method-wrapper '__getslice__' of exceptions.ImportError object>"
+p19
+sS'__getitem__'
+p20
+S"<method-wrapper '__getitem__' of exceptions.ImportError object>"
+p21
+sS'__setstate__'
+p22
+S'<built-in method __setstate__ of exceptions.ImportError object>'
+p23
+sS'__reduce__'
+p24
+S'<built-in method __reduce__ of exceptions.ImportError object>'
+p25
+sS'__str__'
+p26
+S"<method-wrapper '__str__' of exceptions.ImportError object>"
+p27
+sS'__format__'
+p28
+S'<built-in method __format__ of exceptions.ImportError object>'
+p29
+sS'__getattribute__'
+p30
+S"<method-wrapper '__getattribute__' of exceptions.ImportError object>"
+p31
+sS'__class__'
+p32
+S"<type 'exceptions.ImportError'>"
+p33
+sS'__unicode__'
+p34
+S'<built-in method __unicode__ of exceptions.ImportError object>'
+p35
+sS'__delattr__'
+p36
+S"<method-wrapper '__delattr__' of exceptions.ImportError object>"
+p37
+sS'__subclasshook__'
+p38
+S'<built-in method __subclasshook__ of type object>'
+p39
+sS'__repr__'
+p40
+S"<method-wrapper '__repr__' of exceptions.ImportError object>"
+p41
+sS'args'
+p42
+S'("Cannot import module \'gspread\'",)'
+p43
+sS'__dict__'
+p44
+S'{}'
+p45
+sS'__sizeof__'
+p46
+S'<built-in method __sizeof__ of exceptions.ImportError object>'
+p47
+sS'__doc__'
+p48
+S'"Import can\'t find module, or can\'t find name in module."'
+p49
+sS'__init__'
+p50
+S"<method-wrapper '__init__' of exceptions.ImportError object>"
+p51
+sS'__new__'
+p52
+S'<built-in method __new__ of type object>'
+p53
+ssS'evalue'
+p54
+S"Cannot import module 'gspread'"
+p55
+sS'request'
+p56
+cgluon.html
+XML_unpickle
+p57
+(S's\xfbV\x00\x00<div><table><tr><td style="font-weight:bold;vertical-align:top">ajax</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">application</td><td valign="top">:</td><td><div>siriadmin</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">args</td><td valign="top">:</td><td><div><table></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">body</td><td valign="top">:</td><td><div>&lt;cStringIO.StringO object at 0x07C51440&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">cid</td><td valign="top">:</td><td><div>None</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">client</td><td valign="top">:</td><td><div>127.0.0.1</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">controller</td><td valign="top">:</td><td><div>timeclock</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">cookies</td><td valign="top">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top">session_id_admin</td><td valign="top">:</td><td><div>127.0.0.1-1db01016-9ea7-4a53-b033-3f64364d49bf<table><tr><td style="font-weight:bold;vertical-align:top">comment</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">domain</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">expires</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">httponly</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">max-age</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">path</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">secure</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">version</td><td valign="top">:</td><td><div></div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">session_id_mqr</td><td valign="top">:</td><td><div>127.0.0.1-cf91166b-7674-44e2-909a-6dbb9fe0dc49<table><tr><td style="font-weight:bold;vertical-align:top">comment</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">domain</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">expires</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">httponly</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">max-age</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">path</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">secure</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">version</td><td valign="top">:</td><td><div></div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">session_id_welcome</td><td valign="top">:</td><td><div>127.0.0.1-4a0fc084-7d18-411d-90e6-0b5bc1b38233<table><tr><td style="font-weight:bold;vertical-align:top">comment</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">domain</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">expires</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">httponly</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">max-age</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">path</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">secure</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">version</td><td valign="top">:</td><td><div></div></td></tr></table></div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">env</td><td valign="top">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top">app_folders</td><td valign="top">:</td><td><div>set([&#x27;C:\\\\Users\\\\evan\\\\web2py\\\\applications\\\\mqr\\\\&#x27;, &#x27;C:\\\\Users\\\\evan\\\\web2py\\\\applications\\\\siriadmin\\\\&#x27;, &#x27;C:\\\\Users\\\\evan\\\\web2py\\\\applications\\\\admin\\\\&#x27;, &#x27;C:\\\\Users\\\\evan\\\\web2py\\\\applications\\\\welcome\\\\&#x27;])</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">applications_parent</td><td valign="top">:</td><td><div>C:\\Users\\evan\\web2py</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">cmd_args</td><td valign="top">:</td><td><div><table></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">cmd_options</td><td valign="top">:</td><td><div>&lt;Values at 0x20b55f8: {&#x27;verbose&#x27;: False, &#x27;ip&#x27;: &#x27;127.0.0.1&#x27;, &#x27;with_scheduler&#x27;: False, &#x27;ips&#x27;: [&#x27;192.168.0.89&#x27;], &#x27;shutdown_timeout&#x27;: 5, &#x27;taskbar&#x27;: False, &#x27;with_coverage&#x27;: False, &#x27;port&#x27;: 8000, &#x27;maxthreads&#x27;: None, &#x27;softcron&#x27;: False, &#x27;server_name&#x27;: &#x27;evanasus&#x27;, &#x27;bpython&#x27;: False, &#x27;nogui&#x27;: False, &#x27;pid_filename&#x27;: &#x27;httpserver.pid&#x27;, &#x27;extcron&#x27;: False, &#x27;runcron&#x27;: False, &#x27;run_system_tests&#x27;: False, &#x27;test&#x27;: None, &#x27;folder&#x27;: &#x27;C:\\\\Users\\\\evan\\\\web2py&#x27;, &#x27;config&#x27;: &#x27;&#x27;, &#x27;import_models&#x27;: False, &#x27;winservice&#x27;: &#x27;&#x27;, &#x27;shell&#x27;: None, &#x27;run&#x27;: &#x27;&#x27;, &#x27;log_filename&#x27;: &#x27;httpserver.log&#x27;, &#x27;debuglevel&#x27;: 30, &#x27;args&#x27;: [&#x27;&#x27;], &#x27;socket_timeout&#x27;: 5, &#x27;ssl_ca_certificate&#x27;: None, &#x27;scheduler&#x27;: None, &#x27;profiler_filename&#x27;: None, &#x27;ssl_private_key&#x27;: &#x27;&#x27;, &#x27;scheduler_groups&#x27;: None, &#x27;password&#x27;: &#x27;&lt;ask&gt;&#x27;, &#x27;request_queue_size&#x27;: 5, &#x27;ssl_certificate&#x27;: &#x27;&#x27;, &#x27;cronjob&#x27;: False, &#x27;numthreads&#x27;: None, &#x27;quiet&#x27;: False, &#x27;interfaces&#x27;: None, &#x27;minthreads&#x27;: None, &#x27;timeout&#x27;: 10, &#x27;plain&#x27;: False, &#x27;nobanner&#x27;: False}&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">db_sessions</td><td valign="top">:</td><td><div>set([])</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">debugging</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">gluon_parent</td><td valign="top">:</td><td><div>C:\\Users\\evan\\web2py</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">http_accept</td><td valign="top">:</td><td><div>text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">http_accept_encoding</td><td valign="top">:</td><td><div>gzip, deflate</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">http_accept_language</td><td valign="top">:</td><td><div>en-US,en;q=0.5</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">http_cache_control</td><td valign="top">:</td><td><div>max-age=0</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">http_connection</td><td valign="top">:</td><td><div>keep-alive</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">http_cookie</td><td valign="top">:</td><td><div>session_id_welcome=127.0.0.1-4a0fc084-7d18-411d-90e6-0b5bc1b38233; session_id_admin=127.0.0.1-1db01016-9ea7-4a53-b033-3f64364d49bf; session_id_mqr=127.0.0.1-cf91166b-7674-44e2-909a-6dbb9fe0dc49</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">http_host</td><td valign="top">:</td><td><div>127.0.0.1:8000</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">http_user_agent</td><td valign="top">:</td><td><div>Mozilla/5.0 (Windows NT 6.3; WOW64; rv:25.0) Gecko/20100101 Firefox/25.0 FirePHP/0.7.4</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">http_x_insight</td><td valign="top">:</td><td><div>activate</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">is_jython</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">is_pypy</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">local_hosts</td><td valign="top">:</td><td><div><table><tr><td><div>fe80::154e:a5a8:32e3:36ee%2</div></td></tr><tr><td><div>evanasus.PK5001Z</div></td></tr><tr><td><div>evanasus</div></td></tr><tr><td><div>192.168.0.89</div></td></tr><tr><td><div>fe80::83a:3625:3f57:ffa6%14</div></td></tr><tr><td><div>::ffff:127.0.0.1</div></td></tr><tr><td><div>::1</div></td></tr><tr><td><div>2001:0:9d38:6abd:83a:3625:3f57:ffa6</div></td></tr><tr><td><div>127.0.0.1</div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">path_info</td><td valign="top">:</td><td><div>/siriadmin/timeclock/processinvoices</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">query_string</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">remote_addr</td><td valign="top">:</td><td><div>127.0.0.1</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">remote_port</td><td valign="top">:</td><td><div>56835</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">request_method</td><td valign="top">:</td><td><div>GET</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">request_uri</td><td valign="top">:</td><td><div>/siriadmin/timeclock/processinvoices</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">script_name</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">server_name</td><td valign="top">:</td><td><div>evanasus</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">server_port</td><td valign="top">:</td><td><div>8000</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">server_protocol</td><td valign="top">:</td><td><div>HTTP/1.1</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">server_software</td><td valign="top">:</td><td><div>Rocket 1.2.6</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">web2py_path</td><td valign="top">:</td><td><div>C:\\Users\\evan\\web2py</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">web2py_version</td><td valign="top">:</td><td><div>2.5.1-stable+timestamp.2013.06.06.15.39.19</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi_errors</td><td valign="top">:</td><td><div>&lt;open file &#x27;&lt;stderr&gt;&#x27;, mode &#x27;w&#x27; at 0x003250D0&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi_file_wrapper</td><td valign="top">:</td><td><div>&lt;class wsgiref.util.FileWrapper at 0x02CC7D50&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi_input</td><td valign="top">:</td><td><div>&lt;socket._fileobject object at 0x0695D370&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi_multiprocess</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi_multithread</td><td valign="top">:</td><td><div>True</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi_run_once</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi_url_scheme</td><td valign="top">:</td><td><div>http</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi_version</td><td valign="top">:</td><td><div><table><tr><td><div>1</div></td></tr><tr><td><div>0</div></td></tr></table></div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">extension</td><td valign="top">:</td><td><div>html</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">folder</td><td valign="top">:</td><td><div>C:\\Users\\evan\\web2py\\applications\\siriadmin\\</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">function</td><td valign="top">:</td><td><div>processinvoices</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">get_vars</td><td valign="top">:</td><td><div><table></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">global_settings</td><td valign="top">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top">app_folders</td><td valign="top">:</td><td><div>set([&#x27;C:\\\\Users\\\\evan\\\\web2py\\\\applications\\\\mqr\\\\&#x27;, &#x27;C:\\\\Users\\\\evan\\\\web2py\\\\applications\\\\siriadmin\\\\&#x27;, &#x27;C:\\\\Users\\\\evan\\\\web2py\\\\applications\\\\admin\\\\&#x27;, &#x27;C:\\\\Users\\\\evan\\\\web2py\\\\applications\\\\welcome\\\\&#x27;])</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">applications_parent</td><td valign="top">:</td><td><div>C:\\Users\\evan\\web2py</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">cmd_args</td><td valign="top">:</td><td><div><table></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">cmd_options</td><td valign="top">:</td><td><div>&lt;Values at 0x20b55f8: {&#x27;verbose&#x27;: False, &#x27;ip&#x27;: &#x27;127.0.0.1&#x27;, &#x27;with_scheduler&#x27;: False, &#x27;ips&#x27;: [&#x27;192.168.0.89&#x27;], &#x27;shutdown_timeout&#x27;: 5, &#x27;taskbar&#x27;: False, &#x27;with_coverage&#x27;: False, &#x27;port&#x27;: 8000, &#x27;maxthreads&#x27;: None, &#x27;softcron&#x27;: False, &#x27;server_name&#x27;: &#x27;evanasus&#x27;, &#x27;bpython&#x27;: False, &#x27;nogui&#x27;: False, &#x27;pid_filename&#x27;: &#x27;httpserver.pid&#x27;, &#x27;extcron&#x27;: False, &#x27;runcron&#x27;: False, &#x27;run_system_tests&#x27;: False, &#x27;test&#x27;: None, &#x27;folder&#x27;: &#x27;C:\\\\Users\\\\evan\\\\web2py&#x27;, &#x27;config&#x27;: &#x27;&#x27;, &#x27;import_models&#x27;: False, &#x27;winservice&#x27;: &#x27;&#x27;, &#x27;shell&#x27;: None, &#x27;run&#x27;: &#x27;&#x27;, &#x27;log_filename&#x27;: &#x27;httpserver.log&#x27;, &#x27;debuglevel&#x27;: 30, &#x27;args&#x27;: [&#x27;&#x27;], &#x27;socket_timeout&#x27;: 5, &#x27;ssl_ca_certificate&#x27;: None, &#x27;scheduler&#x27;: None, &#x27;profiler_filename&#x27;: None, &#x27;ssl_private_key&#x27;: &#x27;&#x27;, &#x27;scheduler_groups&#x27;: None, &#x27;password&#x27;: &#x27;&lt;ask&gt;&#x27;, &#x27;request_queue_size&#x27;: 5, &#x27;ssl_certificate&#x27;: &#x27;&#x27;, &#x27;cronjob&#x27;: False, &#x27;numthreads&#x27;: None, &#x27;quiet&#x27;: False, &#x27;interfaces&#x27;: None, &#x27;minthreads&#x27;: None, &#x27;timeout&#x27;: 10, &#x27;plain&#x27;: False, &#x27;nobanner&#x27;: False}&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">db_sessions</td><td valign="top">:</td><td><div>set([])</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">debugging</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">gluon_parent</td><td valign="top">:</td><td><div>C:\\Users\\evan\\web2py</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">is_jython</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">is_pypy</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">local_hosts</td><td valign="top">:</td><td><div><table><tr><td><div>fe80::154e:a5a8:32e3:36ee%2</div></td></tr><tr><td><div>evanasus.PK5001Z</div></td></tr><tr><td><div>evanasus</div></td></tr><tr><td><div>192.168.0.89</div></td></tr><tr><td><div>fe80::83a:3625:3f57:ffa6%14</div></td></tr><tr><td><div>::ffff:127.0.0.1</div></td></tr><tr><td><div>::1</div></td></tr><tr><td><div>2001:0:9d38:6abd:83a:3625:3f57:ffa6</div></td></tr><tr><td><div>127.0.0.1</div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">web2py_version</td><td valign="top">:</td><td><div>2.5.1-stable+timestamp.2013.06.06.15.39.19</div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">is_https</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">is_local</td><td valign="top">:</td><td><div>True</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">is_restful</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">now</td><td valign="top">:</td><td><div>datetime.datetime(2013, 11, 19, 4, 47, 37, 727000)</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">post_vars</td><td valign="top">:</td><td><div><table></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">raw_args</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">raw_extension</td><td valign="top">:</td><td><div>None</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">url</td><td valign="top">:</td><td><div>/siriadmin/timeclock/processinvoices</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">utcnow</td><td valign="top">:</td><td><div>datetime.datetime(2013, 11, 19, 4, 47, 37, 727000)</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">uuid</td><td valign="top">:</td><td><div>siriadmin/127.0.0.1.2013-11-19.04-47-37.c07a1744-01d3-4999-8d23-ca77dfe23e6d</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">vars</td><td valign="top">:</td><td><div><table></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi</td><td valign="top">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top">environ</td><td valign="top">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top">HTTP_ACCEPT</td><td valign="top">:</td><td><div>text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">HTTP_ACCEPT_ENCODING</td><td valign="top">:</td><td><div>gzip, deflate</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">HTTP_ACCEPT_LANGUAGE</td><td valign="top">:</td><td><div>en-US,en;q=0.5</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">HTTP_CACHE_CONTROL</td><td valign="top">:</td><td><div>max-age=0</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">HTTP_CONNECTION</td><td valign="top">:</td><td><div>keep-alive</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">HTTP_COOKIE</td><td valign="top">:</td><td><div>session_id_welcome=127.0.0.1-4a0fc084-7d18-411d-90e6-0b5bc1b38233; session_id_admin=127.0.0.1-1db01016-9ea7-4a53-b033-3f64364d49bf; session_id_mqr=127.0.0.1-cf91166b-7674-44e2-909a-6dbb9fe0dc49</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">HTTP_HOST</td><td valign="top">:</td><td><div>127.0.0.1:8000</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">HTTP_USER_AGENT</td><td valign="top">:</td><td><div>Mozilla/5.0 (Windows NT 6.3; WOW64; rv:25.0) Gecko/20100101 Firefox/25.0 FirePHP/0.7.4</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">HTTP_X_INSIGHT</td><td valign="top">:</td><td><div>activate</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">PATH_INFO</td><td valign="top">:</td><td><div>/siriadmin/timeclock/processinvoices</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">QUERY_STRING</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">REMOTE_ADDR</td><td valign="top">:</td><td><div>127.0.0.1</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">REMOTE_PORT</td><td valign="top">:</td><td><div>56835</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">REQUEST_METHOD</td><td valign="top">:</td><td><div>GET</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">REQUEST_URI</td><td valign="top">:</td><td><div>/siriadmin/timeclock/processinvoices</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">SCRIPT_NAME</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">SERVER_NAME</td><td valign="top">:</td><td><div>evanasus</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">SERVER_PORT</td><td valign="top">:</td><td><div>8000</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">SERVER_PROTOCOL</td><td valign="top">:</td><td><div>HTTP/1.1</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">SERVER_SOFTWARE</td><td valign="top">:</td><td><div>Rocket 1.2.6</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi.errors</td><td valign="top">:</td><td><div>&lt;open file &#x27;&lt;stderr&gt;&#x27;, mode &#x27;w&#x27; at 0x003250D0&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi.file_wrapper</td><td valign="top">:</td><td><div>&lt;class wsgiref.util.FileWrapper at 0x02CC7D50&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi.input</td><td valign="top">:</td><td><div>&lt;cStringIO.StringO object at 0x07C51440&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi.multiprocess</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi.multithread</td><td valign="top">:</td><td><div>True</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi.run_once</td><td valign="top">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi.url_scheme</td><td valign="top">:</td><td><div>http</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">wsgi.version</td><td valign="top">:</td><td><div>1</div></td></tr></table></div></td></tr></table></div></td></tr></table></div>'
+tRp58
+sS'frames'
+p59
+(lp60
+(dp61
+S'file'
+p62
+S'C:\\home\\mdipierro\\make_web2py\\web2py\\gluon\\restricted.py'
+p63
+sS'dump'
+p64
+(dp65
+sS'lnum'
+p66
+I212
+sS'lines'
+p67
+(dp68
+sS'call'
+p69
+S"(code='# -*- coding: utf-8 -*-\\n\\n#######################...nable auditing\\nauth.enable_record_versioning(db)\\n', environment={'A': <class 'gluon.html.A'>, 'ANY_OF': <class 'gluon.validators.ANY_OF'>, 'B': <class 'gluon.html.B'>, 'BEAUTIFY': <class 'gluon.html.BEAUTIFY'>, 'BODY': <class 'gluon.html.BODY'>, 'BR': <class 'gluon.html.BR'>, 'BUTTON': <class 'gluon.html.BUTTON'>, 'CAT': <class 'gluon.html.CAT'>, 'CENTER': <class 'gluon.html.CENTER'>, 'CLEANUP': <class 'gluon.validators.CLEANUP'>, ...}, layer=r'C:\\Users\\evan\\web2py\\applications\\siriadmin\\models\\db.py')"
+p70
+sS'func'
+p71
+S'restricted'
+p72
+sa(dp73
+g62
+S'C:\\Users\\evan\\web2py\\applications\\siriadmin\\models\\db.py'
+p74
+sg64
+(dp75
+sg66
+I43
+sg67
+(dp76
+I38
+S'## - old style crud actions'
+p77
+sI39
+S'## (more options discussed in gluon/tools.py)'
+p78
+sI40
+S'#########################################################################'
+p79
+sI41
+S''
+sI42
+S'# import gdata'
+p80
+sI43
+S'import gspread'
+p81
+sI44
+S'from datetime import datetime, date, time'
+p82
+sI45
+S'from gluon.tools import Auth, Crud, Service, PluginManager, prettydate'
+p83
+sI46
+S'auth = Auth(db)'
+p84
+sI47
+S'crud, service, plugins = Crud(db), Service(), PluginManager()'
+p85
+ssg69
+S'()'
+p86
+sg71
+S'<module>'
+p87
+sa(dp88
+g62
+S'C:\\home\\mdipierro\\make_web2py\\web2py\\gluon\\custom_import.py'
+p89
+sg64
+(dp90
+sg66
+I81
+sg67
+(dp91
+sg69
+S"(name='gspread', globals={'A': <class 'gluon.html.A'>, 'ANY_OF': <class 'gluon.validators.ANY_OF'>, 'B': <class 'gluon.html.B'>, 'BEAUTIFY': <class 'gluon.html.BEAUTIFY'>, 'BODY': <class 'gluon.html.BODY'>, 'BR': <class 'gluon.html.BR'>, 'BUTTON': <class 'gluon.html.BUTTON'>, 'CAT': <class 'gluon.html.CAT'>, 'CENTER': <class 'gluon.html.CENTER'>, 'CLEANUP': <class 'gluon.validators.CLEANUP'>, ...}, locals={'A': <class 'gluon.html.A'>, 'ANY_OF': <class 'gluon.validators.ANY_OF'>, 'B': <class 'gluon.html.B'>, 'BEAUTIFY': <class 'gluon.html.BEAUTIFY'>, 'BODY': <class 'gluon.html.BODY'>, 'BR': <class 'gluon.html.BR'>, 'BUTTON': <class 'gluon.html.BUTTON'>, 'CAT': <class 'gluon.html.CAT'>, 'CENTER': <class 'gluon.html.CENTER'>, 'CLEANUP': <class 'gluon.validators.CLEANUP'>, ...}, fromlist=[], level=-1)"
+p92
+sg71
+S'custom_importer'
+p93
+sasS'pyver'
+p94
+S'Python 2.7: C:\\Users\\evan\\web2py\\web2py.exe (prefix: C:\\Users\\evan\\web2py)'
+p95
+sS'session'
+p96
+g57
+(S's\x1a\x00\x00\x00<div><table></table></div>'
+tRp97
+sS'etype'
+p98
+S"<type 'exceptions.ImportError'>"
+p99
+sS'date'
+p100
+S'Tue Nov 19 04:47:37 2013'
+p101
+sS'response'
+p102
+g57
+(S'sa\x10\x00\x00<div><table><tr><td style="font-weight:bold;vertical-align:top">body</td><td valign="top">:</td><td><div>&lt;cStringIO.StringO object at 0x07A69CE0&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">cookies</td><td valign="top">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top">session_id_siriadmin</td><td valign="top">:</td><td><div>127.0.0.1-108ebea1-641e-4434-8f52-1c60ecfdfbdf<table><tr><td style="font-weight:bold;vertical-align:top">comment</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">domain</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">expires</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">httponly</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">max-age</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">path</td><td valign="top">:</td><td><div>/</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">secure</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">version</td><td valign="top">:</td><td><div></div></td></tr></table></div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">delimiters</td><td valign="top">:</td><td><div><table><tr><td><div>{{</div></td></tr><tr><td><div>}}</div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">files</td><td valign="top">:</td><td><div><table></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">flash</td><td valign="top">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">generic_patterns</td><td valign="top">:</td><td><div><table><tr><td><div>*</div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">headers</td><td valign="top">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top">X-Powered-By</td><td valign="top">:</td><td><div>web2py</div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">menu</td><td valign="top">:</td><td><div><table></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">meta</td><td valign="top">:</td><td><div><table></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">models_to_run</td><td valign="top">:</td><td><div><table><tr><td><div>^\\w+\\.py$</div></td></tr><tr><td><div>^timeclock/\\w+\\.py$</div></td></tr><tr><td><div>^timeclock/processinvoices/\\w+\\.py$</div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">postprocessing</td><td valign="top">:</td><td><div><table></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top">session_cookie_expires</td><td valign="top">:</td><td><div>None</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">session_data_name</td><td valign="top">:</td><td><div>session_data_siriadmin</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">session_filename</td><td valign="top">:</td><td><div>C:\\Users\\evan\\web2py\\applications\\siriadmin\\sessions\\127.0.0.1-108ebea1-641e-4434-8f52-1c60ecfdfbdf</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">session_id</td><td valign="top">:</td><td><div>127.0.0.1-108ebea1-641e-4434-8f52-1c60ecfdfbdf</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">session_id_name</td><td valign="top">:</td><td><div>session_id_siriadmin</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">session_new</td><td valign="top">:</td><td><div>True</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">session_storage_type</td><td valign="top">:</td><td><div>file</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">status</td><td valign="top">:</td><td><div>200</div></td></tr><tr><td style="font-weight:bold;vertical-align:top">view</td><td valign="top">:</td><td><div>timeclock/processinvoices.html</div></td></tr></table></div>'
+tRp103
+sS'locals'
+p104
+(dp105
+S'fromlist'
+p106
+S'[]'
+p107
+sS'e'
+S"KeyError('gspread',)"
+p108
+sS'name'
+p109
+S"'gspread'"
+p110
+sS'level'
+p111
+S'-1'
+p112
+sS'itemname'
+p113
+S"'gspread'"
+p114
+sS'e3'
+p115
+S"ImportError('No module named gspread',)"
+p116
+sS'base_importer'
+p117
+S'<built-in function __import__>'
+p118
+sS'globals'
+p119
+S"{'A': <class 'gluon.html.A'>, 'ANY_OF': <class 'gluon.validators.ANY_OF'>, 'B': <class 'gluon.html.B'>, 'BEAUTIFY': <class 'gluon.html.BEAUTIFY'>, 'BODY': <class 'gluon.html.BODY'>, 'BR': <class 'gluon.html.BR'>, 'BUTTON': <class 'gluon.html.BUTTON'>, 'CAT': <class 'gluon.html.CAT'>, 'CENTER': <class 'gluon.html.CENTER'>, 'CLEANUP': <class 'gluon.validators.CLEANUP'>, ...}"
+p120
+sS'result'
+p121
+S'None'
+p122
+sS'items'
+p123
+S"['C:', 'Users', 'evan', 'web2py', 'applications', 'siriadmin']"
+p124
+sS'modules_prefix'
+p125
+S"'applications.siriadmin.modules'"
+p126
+sS'new_mod'
+p127
+S"<module 'applications.siriadmin.modules' from 'applications\\siriadmin\\modules\\__init__.py'>"
+p128
+sS'e1'
+p129
+S'ImportError("Cannot import module \'gspread\'",)'
+p130
+sS'import_tb'
+p131
+S'None'
+p132
+sg104
+S"{'A': <class 'gluon.html.A'>, 'ANY_OF': <class 'gluon.validators.ANY_OF'>, 'B': <class 'gluon.html.B'>, 'BEAUTIFY': <class 'gluon.html.BEAUTIFY'>, 'BODY': <class 'gluon.html.BODY'>, 'BR': <class 'gluon.html.BR'>, 'BUTTON': <class 'gluon.html.BUTTON'>, 'CAT': <class 'gluon.html.CAT'>, 'CENTER': <class 'gluon.html.CENTER'>, 'CLEANUP': <class 'gluon.validators.CLEANUP'>, ...}"
+p133
+sS'oname'
+p134
+S"'gspread'"
+p135
+sssS'traceback'
+p136
+S'Traceback (most recent call last):\n  File "/home/mdipierro/make_web2py/web2py/gluon/restricted.py", line 212, in restricted\n  File "C:\\Users\\evan\\web2py\\applications\\siriadmin\\models\\db.py", line 43, in <module>\n  File "/home/mdipierro/make_web2py/web2py/gluon/custom_import.py", line 81, in custom_importer\nImportError: Cannot import module \'gspread\'\n'
+p137
+s.
