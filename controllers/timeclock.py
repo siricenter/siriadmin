@@ -1,10 +1,4 @@
 ########## Some Global Variables ##############
-<<<<<<< HEAD
-PERIOD_START = datetime(2013, 10, 1) # TODO: implement tzinfo to make datetimes aware ############################
-PERIOD_END = datetime(2013, 12, 21)
-LAST_PERIOD_START = datetime(2013, 11, 10)
-LAST_PERIOD_END = datetime(2013, 11, 23)
-=======
 """
 We need to find the current pay period
 """
@@ -16,7 +10,6 @@ NOW = datetime.now()
 while not (PERIOD_START <= NOW < PERIOD_END):
     PERIOD_START += timedelta(weeks = 2)
     PERIOD_END = PERIOD_START + PAY_PERIOD
->>>>>>> d074592ea41fa014ecff732d3ac2a83522e390f0
 
 def index():
     redirect(URL(employeedash))

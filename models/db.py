@@ -42,8 +42,8 @@ response.generic_patterns = ['*'] if request.is_local else []
 # import gdata
 # import gdata.docs.service
 # import gspread
-# import xlwt
-# from xlwt import *
+import xlwt
+from xlwt import *
 from datetime import datetime, date, time, timedelta, tzinfo
 from gluon.tools import Auth, Crud, Service, PluginManager, prettydate
 auth = Auth(db)

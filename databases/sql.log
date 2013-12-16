@@ -245,3 +245,26 @@ CREATE TABLE bulletin_post_archive(
     modified_by INTEGER REFERENCES auth_user (id) ON DELETE CASCADE
 );
 success!
+timestamp: 2013-12-16T12:04:26.016737
+CREATE TABLE bulletin_post(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    body TEXT,
+    is_active CHAR(1),
+    created_on TIMESTAMP,
+    created_by INTEGER REFERENCES auth_user (id) ON DELETE CASCADE,
+    modified_on TIMESTAMP,
+    modified_by INTEGER REFERENCES auth_user (id) ON DELETE CASCADE
+);
+success!
+timestamp: 2013-12-16T12:04:26.133377
+CREATE TABLE bulletin_post_archive(
+    current_record INTEGER REFERENCES bulletin_post (id) ON DELETE CASCADE,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    body TEXT,
+    is_active CHAR(1),
+    created_on TIMESTAMP,
+    created_by INTEGER REFERENCES auth_user (id) ON DELETE CASCADE,
+    modified_on TIMESTAMP,
+    modified_by INTEGER REFERENCES auth_user (id) ON DELETE CASCADE
+);
+success!
