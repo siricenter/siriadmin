@@ -168,7 +168,7 @@ db.define_table('bulletin_post',
 # for trello authorization keys
 db.define_table('trello_auth',
     Field('token', 'string', label="Trello Token"),
-    Field('usr_id','reference auth_user', label='ID', readable=False, writable=False))
+    Field('usr_id','reference auth_user', label='ID',requires="unique", readable=False, writable=False))
 if auth.is_logged_in():
     db.trello_auth.usr_id.default = auth.user.id
 
