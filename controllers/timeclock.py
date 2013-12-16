@@ -104,13 +104,28 @@ def trello():
     """
     APIKEY = "dfa1c6f431ffce07a6cd11a9daa0d081"
     APISECRET = "fb89378fdb1f65d8c2b03af9ee3314b76e92fc33cceca6a76a03964da07a8f69"
-    requestURL = "https://trello.com/1/authorize?key=%s&name=SIRI&expiration=30days&response_type=token" % APIKEY
-    token = db(db.trello_auth.usr_id == session.auth.user.id).select(db.trello_auth.token)[0].token
+    requestURL = "https://trello.com/1/authorize?key=%s&name=%s&expiration=30days&response_type=token" % (APIKEY, "SIRI+")
+    expired = "token expired"
+    QUERY = db.trello_auth.usr_id == session.auth.user.id
+
+    token = getBoardsURL = page = notifications = unreadNotifications = ""
+    # check to see if we have a token on file. It is used to determine how the page is displayed
+    authTable = db(QUERY).select(db.trello_auth.token)
+    if authTable:
+        # Because it is possible for permission to be revoked we need to be able to check to a bad load.
+        token = authTable[0].token
+        if token != expired:
+            try:
+                getBoardsURL = "https://trello.com/1/members/my/notifications/?key=%s&token=%s&read_filter=unread&fields=data,unread" % (APIKEY, token)
+                page = urllib2.urlopen(getBoardsURL).read() #fetch(getBoardsURL)
+                notifications = json.loads(page.decode('utf8'))
+                unreadNotifications = len(notifications)
+            except urllib2.HTTPError as e:
+                # remove key, it is invalid now
+                db(QUERY).update(token=expired)
+                token = expired
+
     form = SQLFORM(db.trello_auth).process(next=URL(args=[0]))
-    getBoardsURL = "https://trello.com/1/members/my/notifications/?key=%s&token=%s&read_filter=unread&fields=data,unread" % (APIKEY, token)
-    page = fetch(getBoardsURL)
-    notifications = json.loads(page.decode('utf8'))
-    unreadNotifications = len(notifications)
     #linkList = []
     #for note in notifications:
     #    linkList.append("https://trello.com/c/" + note["data"]["card"]["shortlink"])
