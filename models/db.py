@@ -172,6 +172,21 @@ db.define_table('trello_auth',
 if auth.is_logged_in():
     db.trello_auth.usr_id.default = auth.user.id
 
+# mentor table, mentee's are the key of the table
+db.define_table('mentorTrack_mentees',
+    Field('user_id', 'reference auth_user', requires="unique"),
+    Field('mentor_id', 'reference auth_user')
+    Field('project_id', 'reference siri_project_milemarks'))
+
+db.define_dable('mentorTrack_projects',
+    Field('project_name', 'references siri_projects'),
+    Field('milemark', 'string'))
+
+db.define_table('mentorTrack_data',
+    Field('milemark', 'reference mentorTrack_projects'),
+    Field('goal_date', 'date')
+    Field('acheived_date', 'date'))
+
 db.define_table('fs_volunteers',
     Field('usr_id','reference auth_user'),
     Field('opp_location','string',required=True),
