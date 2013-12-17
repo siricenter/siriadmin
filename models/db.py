@@ -42,8 +42,7 @@ response.generic_patterns = ['*'] if request.is_local else []
 # import gdata
 # import gdata.docs.service
 # import gspread
-import xlwt, json, urllib2
-from xlwt import *
+import json, urllib2
 from datetime import datetime, date, time, timedelta, tzinfo
 from gluon.tools import Auth, Crud, Service, PluginManager, prettydate
 auth = Auth(db)
@@ -96,6 +95,7 @@ use_janrain(auth, filename='private/janrain.key')
 
 # db questions: should the students all be in one complex table or should they be in separate tables?
 
+# Table for hour submissions
 db.define_table('timeclock',
     Field('project','string', required=True, label='Project'),
     Field('work_date','date', required=True, label='Work Date'),
@@ -120,7 +120,8 @@ db.timeclock.description.requires = IS_NOT_EMPTY()
 db.timeclock.usr_id.writable = db.timeclock.usr_id.readable = False
 if auth.is_logged_in():
     db.timeclock.usr_id.default = auth.user.id
-    
+
+# All of the current SIRI projects
 db.define_table('siri_projects',
     Field('name', 'string', label='Name'),
     Field('description', 'text', label='Description'),
@@ -159,6 +160,7 @@ db.define_table('siri_students',
 db.siri_students.usr_id.writable = db.siri_students.usr_id.readable = False
 if auth.is_logged_in():
     db.siri_students.usr_id.default=auth.user.id
+
 
 # for the dashboard bulletin board
 db.define_table('bulletin_post',
