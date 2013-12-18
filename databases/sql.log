@@ -273,3 +273,30 @@ CREATE TABLE bulletin_post_archive(
     modified_by INTEGER REFERENCES auth_user (id) ON DELETE CASCADE
 );
 success!
+timestamp: 2013-12-17T15:04:28.493784
+CREATE TABLE mentorTrack_mentees(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER REFERENCES auth_user (id) ON DELETE CASCADE,
+    mentor_id INTEGER REFERENCES auth_user (id) ON DELETE CASCADE,
+    project_id INTEGER REFERENCES siri_project_milemarks (id) ON DELETE CASCADE
+);
+success!
+timestamp: 2013-12-17T15:04:47.076845
+CREATE TABLE mentorTrack_projects(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_name INTEGER REFERENCES siri_projects (id) ON DELETE CASCADE,
+    milemark CHAR(512)
+);
+success!
+timestamp: 2013-12-17T15:04:47.082677
+CREATE TABLE mentorTrack_data(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    milemark INTEGER REFERENCES mentorTrack_projects (id) ON DELETE CASCADE,
+    goal_date DATE,
+    acheived_date DATE
+);
+success!
+timestamp: 2013-12-17T15:11:10.775046
+ALTER TABLE mentorTrack_data ADD user_id INTEGER REFERENCES mentorTrack_mentees (id) ON DELETE CASCADE;
+timestamp: 2013-12-17T15:59:48.917838
+ALTER TABLE mentorTrack_mentees ADD project_name INTEGER REFERENCES siri_projects (id) ON DELETE CASCADE;

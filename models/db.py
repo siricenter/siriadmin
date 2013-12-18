@@ -134,7 +134,7 @@ db.define_table('siri_projects',
     Field('num_students', 'integer', label='# of Students'),
     Field('reviewed', 'boolean', label='Reviewed'),
     Field('contracted', 'boolean', label='Contracted'),
-    Field('is_active', 'boolean', label='Active')
+    Field('is_active', 'boolean', label='Active'),
 )
 db.siri_projects.reviewed.default=False
 
@@ -165,29 +165,38 @@ if auth.is_logged_in():
 # for the dashboard bulletin board
 db.define_table('bulletin_post',
     Field('body', 'string',label="Your comment"),
-    auth.signature)
+    auth.signature
+    )
 
 # for trello authorization keys
 db.define_table('trello_auth',
     Field('token', 'string', label="Trello Token"),
-    Field('usr_id','reference auth_user', label='ID',requires="unique", readable=False, writable=False))
+    Field('usr_id','reference auth_user', label='ID',requires="unique", readable=False, writable=False)
+    )
 if auth.is_logged_in():
     db.trello_auth.usr_id.default = auth.user.id
 
 # mentor table, mentee's are the key of the table
-db.define_table('mentorTrack_mentees',
-    Field('user_id', 'reference auth_user', requires="unique"),
-    Field('mentor_id', 'reference auth_user')
-    Field('project_id', 'reference siri_project_milemarks'))
 
-db.define_dable('mentorTrack_projects',
-    Field('project_name', 'references siri_projects'),
-    Field('milemark', 'string'))
+db.define_table('mentorTrack_projects',
+    Field('project_name', 'reference siri_projects', requires=IS_IN_DB(db, db.siri_projects.id, '%(name)s')),
+    Field('milemark', 'string')
+    )
+
+db.define_table('mentorTrack_mentees',
+    Field('user_id', 'reference auth_user', label='Mentee', unique=True, requires=IS_IN_DB(db, db.auth_user.id, '%(first_name)s %(last_name)s')),
+    Field('mentor_id', 'reference auth_user', label='Mentor', requires=IS_IN_DB(db, db.auth_user.id, '%(first_name)s %(last_name)s')),
+    Field('project_name', 'reference siri_projects', requires=IS_IN_DB(db, db.siri_projects.id, '%(name)s')),
+    #Field('project_id', 'reference mentorTrack_projects', requires=IS_IN_DB(db, db.mentorTrack_projects.id, '%(project_name)%'))
+    )
 
 db.define_table('mentorTrack_data',
-    Field('milemark', 'reference mentorTrack_projects'),
-    Field('goal_date', 'date')
-    Field('acheived_date', 'date'))
+    #Field('user_id', 'reference auth_user', label='Mentee', requires=IS_IN_DB(db, db.auth_user.id, '%(first_name)s %(last_name)s', _and=IS_IN_DB(db, db.mentorTrack_mentees.user_id))),
+    Field('user_id', 'reference mentorTrack_mentees', label='Mentee', requires=IS_IN_DB(db, db.mentorTrack_mentees.user_id, _and=IS_IN_DB(db, db.auth_user.id, '%(first_name)s %(last_name)s'))),
+    Field('milemark', 'reference mentorTrack_projects', requires=IS_IN_DB(db, db.mentorTrack_projects.id, '%(milemark)s')),
+    Field('goal_date', 'date'),
+    Field('acheived_date', 'date')
+    )
 
 db.define_table('fs_volunteers',
     Field('usr_id','reference auth_user'),
