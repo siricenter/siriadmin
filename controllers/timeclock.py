@@ -167,6 +167,14 @@ def trello():
     return locals()
     # https://trello.com/c/gjmBBLSs/14-use-as-many-boards-as-you-want-we-ll-make-more
 
+def mentortrack():
+    """
+    currently a testing site for the mentor track form
+    """
+    tempTable = db(db.mentorTrack_data.user_id==db.auth_user.id).select(db.mentorTrack_data.ALL)
+    form = SQLFORM(db.mentorTrack_data)
+    return locals()
+
 @auth.requires_login()
 def processinvoices():
     """
