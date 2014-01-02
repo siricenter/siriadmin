@@ -191,16 +191,13 @@ db.define_table('mentorTrack_mentees',
     #Field('project_id', 'reference mentorTrack_projects', requires=IS_IN_DB(db, db.mentorTrack_projects.id, '%(project_name)%'))
     )
 
-
-
 db.define_table('mentorTrack_data',
     Field('user_id', 'reference auth_user', label='Mentee'),
-    #Field('user_id', 'reference mentorTrack_mentees', label='Mentee', requires=IS_IN_DB(db, db.mentorTrack_mentees.user_id, _and=IS_IN_DB(db, db.auth_user.id, '%(first_name)s %(last_name)s'))),
     Field('milemark', 'reference mentorTrack_projects', requires=IS_IN_DB(db, db.mentorTrack_projects.id, '%(milemark)s')),
     Field('goal_date', 'date',requires = IS_DATE(format='%m/%d/%Y')),
     Field('acheived_date', 'date',requires = IS_DATE(format='%m/%d/%Y'))
     )
-menteeFilter = db(db.auth_user.id==db.mentorTrack_data.user_id)
+menteeFilter = db(db.auth_user.id==db.mentorTrack_mentees.user_id)
 db.mentorTrack_data.user_id.requires = IS_IN_DB(menteeFilter,'auth_user.id','%(first_name)s %(last_name)s')
 
 db.define_table('fs_volunteers',

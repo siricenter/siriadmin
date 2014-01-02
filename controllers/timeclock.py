@@ -133,6 +133,7 @@ def bulletin_board():
     form=SQLFORM(db.bulletin_post).process(next=URL(args=[0]))
     return locals()
 
+@auth.requires_login()
 def trello():
     """
     Will eventuall show trellow information

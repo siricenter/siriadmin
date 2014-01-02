@@ -435,3 +435,9 @@
 [2013-12-12 14:46:16] CREATE timeclock/trello.load: 0
 [2013-12-17 11:08:22] CREATE timeclock/mentortrack.html: 0
 [2013-12-17 11:08:44] EDIT siriadmin/views/timeclock/mentortrack.html: 0
+[2014-01-01 16:11:36] CREATE mentorTrack/editHours.html: 0
+[2014-01-01 16:12:33] DELETE siriadmin/views/mentorTrack/editHours.html: -3
+[2014-01-01 16:12:55] CREATE mentorTrack/editEntries.html: 0
+[2014-01-01 16:16:29] CREATE mentorTrack/projects.html: 0
+[2014-01-01 16:16:52] CREATE mentorTrack/mentees.html: 0
+[2014-01-01 16:17:10] CREATE mentorTrack.py: 0
