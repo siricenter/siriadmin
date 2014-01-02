@@ -1,3 +1,47 @@
 {{extend 'layout.html'}}
-<h1>This is the mentorTrack/projects.html template</h1>
-{{=BEAUTIFY(response._vars)}}
+<div class="row">
+	<div class="span6">
+		<h1>Mentees</h1>
+		<table>
+			<tr>
+				<th>Mentee</th>
+				<th>Mentor</th>
+				<th>Assigned Project</th>
+			</tr>
+		{{for i in mentorTrack_mentees:}}
+			<tr>
+				<td>{{=i.mentee_id.first_name+' '+i.mentee_id.last_name}}</td>
+				<td>{{=i.mentor_id.first_name+" 'The Mentornator' "+i.mentor_id.last_name}}</td>
+				<td>{{=i.siri_projects.name}}</td>
+			</tr>
+		{{pass}}
+		</table>
+	</div>
+	<div class="span6">
+		<h1>Projects</h1>
+		<table>
+			<tr>
+				<th>Project Name</th>
+				<th>Number of Mile Marks<th>
+			</tr>
+			{{for i in projectList:}}
+			<tr>
+				<td>{{=i.siri_projects.name}}</td>
+				<td>{{=i[count]}}</td>
+			</tr>
+			{{pass}}
+		</table>
+	</div>
+</div>
+<hr>
+<div class="row">
+	<div class="span6">
+		<h3>Add Mentee</h3>
+		{{=assignMentorTrackForm}}
+	</div>
+	<div class="span6">
+		<h3>Add Mile Stone to Project</h3>
+		{{=buildProjectForm}}
+	</div>
+</div>
+{{#=BEAUTIFY(response._vars)}}

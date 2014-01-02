@@ -3,13 +3,14 @@
 def index(): return dict(message="hello from mentorTrack.py")
 
 def projects():
-	projectList = db(db.mentorTrack_projects.project_name==db.siri_projects.id).select(groupby=db.mentorTrack_projects.project_name)
+	count = db.mentorTrack_projects.project_name.count()
+	projectList = db(db.mentorTrack_projects.project_name==db.siri_projects.id).select(db.siri_projects.name, count, groupby=db.mentorTrack_projects.project_name)
 	
-	userAlias = db.auth_user.with_alias('user_id')
+	userAlias = db.auth_user.with_alias('mentee_id')
 	mentorAlias = db.auth_user.with_alias('mentor_id')
 	mentorTrack_mentees = db((db.mentorTrack_mentees.project_name==db.siri_projects.id)&
 		(db.mentorTrack_mentees.user_id==userAlias.id)&
-		(db.mentorTrack_mentees.mentor_id==mentorAlias.id)).select()
+		(db.mentorTrack_mentees.mentor_id==mentorAlias.id)).select(orderby=db.mentorTrack_mentees.project_name)
 
 	buildProjectForm = SQLFORM(db.mentorTrack_projects)
 	assignMentorTrackForm = SQLFORM(db.mentorTrack_mentees)
