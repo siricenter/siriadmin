@@ -51,10 +51,12 @@ db.mentorTrack_data.user_id.requires = IS_IN_DB(menteeFilter,'auth_user.id','%(f
 	return locals()
 
 def personal():
-	project = db(db.mentorTrack_mentees.user_id == session.auth.user.id).select(db.mentorTrack_mentees.project_name)
-	if len(project) != 1:
-		raise HTTP(404)
-	project = project[0].project_name
-	milemark = db(db.mentorTrack_projects.project_name == project)
+	mileStones = db((db.mentorTrack_mentees.user_id == session.auth.user.id)&	# our users data
+		(db.mentorTrack_projects.project_name == db.mentorTrack_mentees.project_name) # get the milestones for that project
+		).select(orderby=db.mentorTrack_projects.id)
+
+	data = db(session.auth.user.id == db.mentorTrack_data.user_id).select(orderby=db.mentorTrack_data.milemark)
+	
+
 	return locals()
 

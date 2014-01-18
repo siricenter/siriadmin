@@ -87,12 +87,14 @@
 </div>
 <hr>
 <div class="row">
-	<div class="span3">
-		<iframe id="forecast_embed" type="text/html" frameborder="0" height="245" width="100%" src="http://forecast.io/embed/#lat=43.8261&lon=-111.7831&name=Rexburg"> </iframe>
-	</div>
-	<div class="span3">
-		<h1>Trello Notifications</h1>
-		{{=LOAD('timeclock', 'trello.load', ajax=True, ajax_trap=True, user_signature=True)}}
+	<div class="span6">
+				<div class="row">
+			<h1>Trello Notifications</h1>
+			{{=LOAD('timeclock', 'trello.load', ajax=True, ajax_trap=True, user_signature=True)}}
+		</div>
+		<!--<div class="row">
+			<iframe id="forecast_embed" type="text/html" frameborder="0" height="245" width="100%" src="http://forecast.io/embed/#lat=43.8261&lon=-111.7831&name=Rexburg"> </iframe>
+		</div>-->
 	</div>
 	<div class="span6">
 		<h1>Mentor Track</h1>

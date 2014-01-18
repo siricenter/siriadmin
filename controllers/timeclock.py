@@ -140,7 +140,7 @@ def trello():
     """
     APIKEY = "dfa1c6f431ffce07a6cd11a9daa0d081"
     APISECRET = "fb89378fdb1f65d8c2b03af9ee3314b76e92fc33cceca6a76a03964da07a8f69"
-    requestURL = "https://trello.com/1/authorize?key=%s&name=%s&expiration=30days&response_type=token" % (APIKEY, "SIRI+")
+    requestURL = "https://trello.com/1/authorize?key=%s&name=%s&expiration=never&response_type=token" % (APIKEY, "SIRI+")
     expired = "token expired"
     QUERY = db.trello_auth.usr_id == session.auth.user.id
 

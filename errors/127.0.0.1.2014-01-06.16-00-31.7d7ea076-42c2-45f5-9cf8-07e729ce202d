@@ -1,0 +1,21 @@
+(dp1
+S'output'
+p2
+S"<type 'exceptions.TypeError'> long() argument must be a string or a number, not 'Set'"
+p3
+sS'layer'
+p4
+S'/Users/adin/Work/SIRI/TimeClock/siri/applications/siriadmin/views/mentorTrack/personal.load'
+p5
+sS'code'
+p6
+S'\'\'\'\\n# License: Public Domain\\n# Author: Iceberg at 21cn dot com\\n\\nWith this generic.load file, you can use same function to serve two purposes.\\n\\n= regular action\\n- ajax callback (when called with .load)\\n\\nExample modified from http://www.web2py.com/AlterEgo/default/show/252:\\n\\ndef index():\\n    return dict(\\n\t\tpart1=\'hello world\',\\n        \tpart2=LOAD(url=URL(r=request,f=\'auxiliary.load\'),ajax=True))\\n\\ndef auxiliary():\\n    form=SQLFORM.factory(Field(\'name\'))\\n    if form.accepts(request.vars):\\n        response.flash = \'ok\' \\n        return dict(message="Hello %s" % form.vars.name)\\n    return dict(form=form)\\n\\nNotice:\\n\\n- no need to set response.headers[\'web2py-response-flash\']\\n- no need to return a string\\neven if the function is called via ajax.\\n\\n\'\'\'\nresponse.write(\'\\n\\n\', escape=False)\nif len(response._vars)==1:\n    response.write(response._vars.values()[0])\nelse:\n    response.write(BEAUTIFY(response._vars))\n    pass'
+p7
+sS'snapshot'
+p8
+(dp9
+sS'traceback'
+p10
+S'Traceback (most recent call last):\n  File "/Users/adin/Work/SIRI/TimeClock/siri/gluon/restricted.py", line 212, in restricted\n    exec ccode in environment\n  File "/Users/adin/Work/SIRI/TimeClock/siri/applications/siriadmin/views/mentorTrack/personal.load", line 6, in <module>\n  File "/Users/adin/Work/SIRI/TimeClock/siri/gluon/html.py", line 2356, in __init__\n    components.append(repr(c))\n  File "/Users/adin/Work/SIRI/TimeClock/siri/gluon/dal.py", line 9803, in __repr__\n    return \'<Set %s>\' % BaseAdapter.expand(self.db._adapter,self.query)\n  File "/Users/adin/Work/SIRI/TimeClock/siri/gluon/dal.py", line 1366, in expand\n    return op(first, second, **optional_args)\n  File "/Users/adin/Work/SIRI/TimeClock/siri/gluon/dal.py", line 1276, in EQ\n    self.expand(second, first.type))\n  File "/Users/adin/Work/SIRI/TimeClock/siri/gluon/dal.py", line 1376, in expand\n    return str(self.represent(expression,field_type))\n  File "/Users/adin/Work/SIRI/TimeClock/siri/gluon/dal.py", line 1830, in represent\n    return str(long(obj))\nTypeError: long() argument must be a string or a number, not \'Set\'\n'
+p11
+s.
